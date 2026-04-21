@@ -1,5 +1,6 @@
 // /app/api/kipris/search/route.js
 // KIPRIS Plus REST API + 전문 XML 파싱 + Claude SMK
+import iconv from 'iconv-lite';
 
 export async function POST(request) {
   const body = await request.json();
@@ -113,24 +114,20 @@ export async function POST(request) {
       if (paths.length > 0) {
         result.pdfUrls.main = paths[0];
         
-        // XML 전문 다운로드 — EUC-KR 인코딩 처리
+        // XML 전문 다운로드 — iconv-lite로 EUC-KR 디코딩
         try {
           const xmlRes = await fetch(paths[0]);
           const xmlBuf = await xmlRes.arrayBuffer();
+          const buf = Buffer.from(xmlBuf);
           
-          // EUC-KR로 먼저 시도, 실패하면 UTF-8
-          let fullXml;
-          try {
-            const eucKrDecoder = new TextDecoder('euc-kr');
-            fullXml = eucKrDecoder.decode(xmlBuf);
-          } catch(e) {
-            fullXml = new TextDecoder('utf-8').decode(xmlBuf);
-          }
+          // XML 선언에서 인코딩 확인
+          const head = buf.slice(0, 200).toString('ascii');
+          const isEucKr = head.includes('EUC-KR') || head.includes('euc-kr');
           
-          // UTF-8 BOM이나 인코딩 선언이 있으면 UTF-8로 재시도
-          if (fullXml.includes('encoding="UTF-8"') && fullXml.includes('\ufffd')) {
-            fullXml = new TextDecoder('utf-8').decode(xmlBuf);
-          }
+          // iconv-lite로 디코딩
+          const fullXml = isEucKr 
+            ? iconv.decode(buf, 'euc-kr')
+            : iconv.decode(buf, 'utf-8');
 
           // XML 태그 제거한 순수 텍스트
           const plainText = fullXml
@@ -161,7 +158,8 @@ export async function POST(request) {
 
           // 전문 텍스트 저장 (프론트 뷰어용)
           result.fullTextXml = plainText.substring(0, 50000);
-          result.debug.xmlEncoding = fullXml.substring(0, 200);
+          result.debug.xmlEncoding = isEucKr ? 'EUC-KR (iconv)' : 'UTF-8 (iconv)';
+          result.debug.xmlSample = plainText.substring(0, 300);
           result.debug.figureCount = result.figureDescsFromXml.length;
         } catch(e) { result.debug.xmlDownloadErr = String(e); }
       }
