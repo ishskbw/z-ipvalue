@@ -1,5 +1,5 @@
 // /app/api/kipris/search/route.js
-// KIPRIS Plus REST API — 정확한 엔드포인트 사용
+// KIPRIS Plus REST API + Claude SMK + 디버그 로그
 
 export async function POST(request) {
   const body = await request.json();
@@ -11,7 +11,7 @@ export async function POST(request) {
   if (!kiprisKey) return Response.json({ error: 'KIPRIS API key not configured' }, { status: 500 });
 
   const cleanNo = patentNo.replace(/[^0-9]/g, '');
-  const result = { bib: null, family: [], smk: null, error: null };
+  const result = { bib: null, family: [], smk: null, error: null, pdfUrls: {}, debug: {} };
 
   const ext = (xml, tag) => {
     const re = new RegExp(`<${tag}><!\\[CDATA\\[([\\s\\S]*?)\\]\\]></${tag}>|<${tag}>([\\s\\S]*?)</${tag}>`);
@@ -22,7 +22,7 @@ export async function POST(request) {
   const base = 'http://plus.kipris.or.kr/openapi/rest/patUtiModInfoSearchSevice';
 
   try {
-    // ── Step 1: 항목별검색 (출원/공개/등록 번호) ──
+    // ── Step 1: 항목별검색 ──
     let url;
     if (searchType === 'application') {
       url = `${base}/applicationNumberSearchInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${cleanNo}&patent=true&utility=true&docsCount=1&docsStart=1`;
@@ -64,63 +64,68 @@ export async function POST(request) {
       try {
         const r = await fetch(`${base}/patentAbstractInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
         const x = await r.text();
+        result.debug.abstract = x.substring(0, 500);
         const a = ext(x, 'astrtCont');
         if (a) result.bib.abstract = a;
-      } catch(e) {}
+      } catch(e) { result.debug.abstractErr = String(e); }
     }
 
-    // ── Step 3: 발명자 정보 (patentInventorInfo) ──
+    // ── Step 3: 발명자 ──
     try {
       const r = await fetch(`${base}/patentInventorInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
       const x = await r.text();
-      const names = [...x.matchAll(/<name>([\s\S]*?)<\/name>/g)].map(m => m[1].trim()).filter(Boolean);
+      result.debug.inventor = x.substring(0, 800);
+      // Extract <name> tags from inventor response
+      const nameMatches = [...x.matchAll(/<name>([\s\S]*?)<\/name>/g)];
+      const names = nameMatches.map(m => m[1].trim()).filter(Boolean);
       if (names.length > 0) result.bib.inventorName = names.join(', ');
-    } catch(e) {}
+    } catch(e) { result.debug.inventorErr = String(e); }
 
     // ── Step 4: 대표도면 ──
     if (!result.bib.bigDrawing) {
       try {
         const r = await fetch(`${base}/getReprsntFloorPlanInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
         const x = await r.text();
+        result.debug.drawing = x.substring(0, 500);
         result.bib.bigDrawing = ext(x, 'largePath') || ext(x, 'path');
       } catch(e) {}
     }
 
-    // ── Step 4: 패밀리 ──
+    // ── Step 5: 패밀리 ──
     try {
       const r = await fetch(`${base}/patentFamilyInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
       const x = await r.text();
+      result.debug.family = x.substring(0, 500);
       const codes = [...x.matchAll(/<countryCode>([\s\S]*?)<\/countryCode>/g)];
-      const names = [...x.matchAll(/<countryName>([\s\S]*?)<\/countryName>/g)];
+      const cnames = [...x.matchAll(/<countryName>([\s\S]*?)<\/countryName>/g)];
       const nums = [...x.matchAll(/<familyNumber>([\s\S]*?)<\/familyNumber>/g)];
       const seen = new Set();
       for (let i = 0; i < codes.length; i++) {
         const c = codes[i][1].trim();
         if (c && c !== 'KR' && !seen.has(c)) {
           seen.add(c);
-          result.family.push({ countryCode: c, countryName: names[i]?.[1]?.trim() || '', applicationNo: nums[i]?.[1]?.trim() || '' });
+          result.family.push({ countryCode: c, countryName: cnames[i]?.[1]?.trim() || '', applicationNo: nums[i]?.[1]?.trim() || '' });
         }
       }
-    } catch(e) {}
+    } catch(e) { result.debug.familyErr = String(e); }
 
-    // ── Step 6: 전문 PDF URL 조회 ──
-    result.pdfUrls = {};
+    // ── Step 6: 전문 PDF URL ──
     try {
-      // 공고전문PDF (등록공보) 우선 조회
       const r1 = await fetch(`${base}/getAnnFullTextInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
       const x1 = await r1.text();
+      result.debug.annPdf = x1.substring(0, 500);
       const annPath = ext(x1, 'path');
       if (annPath) result.pdfUrls.ann = annPath;
-    } catch(e) {}
+    } catch(e) { result.debug.annPdfErr = String(e); }
     try {
-      // 공개전문PDF
       const r2 = await fetch(`${base}/getPubFullTextInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
       const x2 = await r2.text();
+      result.debug.pubPdf = x2.substring(0, 500);
       const pubPath = ext(x2, 'path');
       if (pubPath) result.pdfUrls.pub = pubPath;
-    } catch(e) {}
+    } catch(e) { result.debug.pubPdfErr = String(e); }
 
-    // ── Step 7: Claude SMK + 도면 설명 ──
+    // ── Step 7: Claude SMK ──
     if (anthropicKey && result.bib.title && result.bib.title !== '검색 결과 없음') {
       try {
         const prompt = `다음 특허 정보를 바탕으로 SMK(기술이전 마케팅 시트)를 작성하세요.
