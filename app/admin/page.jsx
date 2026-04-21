@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 
 const CATEGORIES = ['AI/SW', '바이오', '소재', '에너지', '전자', '환경'];
 const DEAL_TYPES = ['라이선스', '매각'];
-const STATUSES = ['신규', '등록', '협의중'];
+const STATUSES = ['공개', '협의중', '완료'];
 const EXAM_STATUSES = ['심사중', '등록완료'];
 
 export default function AdminPage() {
@@ -201,9 +201,9 @@ function PatentList({ patents, onEdit, onDelete, onTogglePublished }) {
 
 function Badge({ status }) {
   const colors = {
-    '신규': { bg: '#faf0f2', fg: '#6B1D2E' },
+    '공개': { bg: '#f9fafb', fg: '#6b7280' },
     '협의중': { bg: '#fdf6ec', fg: '#8a6d2b' },
-    '등록': { bg: '#f0f5f1', fg: '#2d5a3e' },
+    '완료': { bg: '#f0f5f1', fg: '#2d5a3e' },
   };
   const c = colors[status] || { bg: '#f3f4f6', fg: '#374151' };
   return (
@@ -216,7 +216,7 @@ function Badge({ status }) {
 function PatentForm({ patent, onClose }) {
   const [form, setForm] = useState(patent || {
     title: '', description: '', detail: '',
-    category: 'AI/SW', deal_type: '라이선스', status: '신규',
+    category: 'AI/SW', deal_type: '라이선스', status: '공개',
     trl_level: null, application_date: '', application_no: '', registration_no: '',
     examination_status: '', foreign_countries: [], tags: [],
     holder: '', inventor: '', price_display: '', contact_email: '',
