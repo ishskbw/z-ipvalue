@@ -69,7 +69,15 @@ export async function POST(request) {
       } catch(e) {}
     }
 
-    // ── Step 3: 대표도면 ──
+    // ── Step 3: 발명자 정보 (patentInventorInfo) ──
+    try {
+      const r = await fetch(`${base}/patentInventorInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
+      const x = await r.text();
+      const names = [...x.matchAll(/<name>([\s\S]*?)<\/name>/g)].map(m => m[1].trim()).filter(Boolean);
+      if (names.length > 0) result.bib.inventorName = names.join(', ');
+    } catch(e) {}
+
+    // ── Step 4: 대표도면 ──
     if (!result.bib.bigDrawing) {
       try {
         const r = await fetch(`${base}/getReprsntFloorPlanInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
