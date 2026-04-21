@@ -123,7 +123,7 @@ const SAMPLE_PATENTS = [
 ];
 
 const FIELDS = ["전체", "AI/SW", "바이오", "소재", "에너지", "전자", "환경"];
-const TYPES = ["전체", "라이선스", "매각"];
+const TYPES = ["전체", "라이선스", "매각", "라이선스/매각"];
 const STATUSES = ["전체", "공개", "협의중", "완료"];
 
 const fieldColors = {
@@ -921,7 +921,7 @@ export default function App() {
     setCategoryConfirm({
       suggested: smkData.field || "(미분류)",
       selected: suggestCategory(smkData.field),
-      dealType: "라이선스",
+      dealType: "라이선스/매각", // 기본: 둘 다 가능
     });
   };
 
@@ -1134,7 +1134,13 @@ export default function App() {
   const filtered = patents.filter((p) => {
     if (search && !p.title.includes(search) && !p.summary.includes(search) && !p.keywords.some(k => k.includes(search))) return false;
     if (fieldFilter !== "전체" && p.field !== fieldFilter) return false;
-    if (typeFilter !== "전체" && p.type !== typeFilter) return false;
+    if (typeFilter !== "전체") {
+      // "라이선스/매각" 복합 타입은 '라이선스' 필터와 '매각' 필터 양쪽에서 모두 노출
+      const typeMatches =
+        p.type === typeFilter ||
+        (p.type === "라이선스/매각" && (typeFilter === "라이선스" || typeFilter === "매각"));
+      if (!typeMatches) return false;
+    }
     if (statusFilter !== "전체" && p.status !== statusFilter) return false;
     return true;
   });
@@ -2183,8 +2189,9 @@ export default function App() {
                       fontFamily: "inherit", outline: "none"
                     }}
                   >
-                    <option value="라이선스">라이선스</option>
-                    <option value="매각">매각</option>
+                    <option value="라이선스/매각">라이선스/매각 (둘 다 가능)</option>
+                    <option value="라이선스">라이선스만</option>
+                    <option value="매각">매각만</option>
                   </select>
                 </div>
               </div>
