@@ -595,11 +595,18 @@ export default function App() {
     filingDate: p.application_date ? p.application_date.replace(/-/g, ".") : "",
     examStatus: p.examination_status || "",
     overseas: p.foreign_countries || [],
+    overseasDetail: p.overseas_detail || [],
     summary: p.description || "",
     keywords: p.tags || [],
     likes: p.likes || 0,
     detail: p.detail || p.description || "",
     figures: p.figures || [],
+    // 법률현황 / 명세서 전문
+    registrationNumber: p.registration_no || null,
+    registrationDate: p.registration_date ? p.registration_date.replace(/-/g, ".") : null,
+    publicationNumber: p.publication_number || null,
+    fullTextXml: p.full_text_xml || null,
+    kiprisLinked: !!(p.registration_no || p.publication_number || p.full_text_xml),
   });
 
   // Supabase에서 공개된 특허 목록 불러오기
@@ -941,17 +948,24 @@ export default function App() {
       application_date: convertDate(smkData.filingDate),
       application_no: smkData.patentNo || null,
       registration_no: smkData.registrationNumber || null,
+      registration_date: convertDate(smkData.registrationDate),
+      publication_number: smkData.publicationNumber || null,
+      full_text_xml: smkData.fullTextXml || null,
       examination_status: mapExamStatus(smkData.examStatus),
       foreign_countries: smkData.overseas || [],
+      overseas_detail: smkData.overseasDetail || [],
       tags: smkData.keywords || [],
       holder: smkData.org || null,
       inventor: smkData.inventor || null,
       price_display: null,
       contact_email: null,
       is_published: true,
+      // 도면: 이미지 URL(KIPRIS 외부 링크 또는 PDF 렌더 data URL)까지 포함 저장
       figures: (smkData.figures || []).map((f) => ({
+        page: f.page || null,
         title: f.title || "",
         desc: f.desc || "",
+        imageUrl: f.imageUrl || null,
         icon: "📊",
       })),
     };
@@ -2133,6 +2147,15 @@ export default function App() {
                       ) : <span style={{ fontSize: 12, color: "var(--text-light)" }}>국내만</span>}
                     </div>
                   </div>
+                  {selectedPatent.registrationNumber && (
+                    <div className="info-item"><div className="info-label">등록번호</div><div className="info-value">{selectedPatent.registrationNumber}</div></div>
+                  )}
+                  {selectedPatent.registrationDate && (
+                    <div className="info-item"><div className="info-label">등록일</div><div className="info-value">{selectedPatent.registrationDate}</div></div>
+                  )}
+                  {selectedPatent.publicationNumber && (
+                    <div className="info-item"><div className="info-label">공개번호</div><div className="info-value">{selectedPatent.publicationNumber}</div></div>
+                  )}
                 </div>
 
                 {/* 기술 개요 + 상세 — 2열 병렬 */}
