@@ -191,6 +191,10 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
   padding:0; display:flex; flex-direction:column;
 }
 .patent-card:hover { border-color:var(--oxblood); box-shadow:var(--shadow-lg); transform:translateY(-3px); }
+.card-status-corner {
+  position:absolute; top:14px; right:14px; z-index:2;
+}
+.card-status-corner .badge { font-size:10px; font-weight:700; padding:4px 10px; letter-spacing:.5px; }
 .card-top { padding:28px 24px 0; flex:1; }
 .card-badges { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
 .badge {
@@ -1423,10 +1427,14 @@ export default function App() {
                 <div className="patent-grid">
                   {filtered.map((p) => (
                     <div key={p.id} className="patent-card" onClick={() => setSelectedPatent(p)}>
+                      {p.status && p.status !== "공개" && (
+                        <div className="card-status-corner">
+                          <Badge text={p.status} colors={statusColors[p.status]} />
+                        </div>
+                      )}
                       <div className="card-top">
                         <div className="card-badges">
                           <Badge text={p.field} colors={fieldColors[p.field] || { bg: "#F1F5F9", text: "#475569" }} />
-                          <Badge text={p.status} colors={statusColors[p.status]} />
                           <span className="badge" style={{ background: "var(--ivory)", color: "var(--text-mid)", border: "1px solid var(--border)" }}>
                             {p.type}
                           </span>
@@ -1473,9 +1481,11 @@ export default function App() {
                         <span className="card-org">{p.org}</span>
                         <span className="card-price">{p.price}</span>
                       </div>
-                      <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedPatent(p); }}>
-                        매입 의사 타진 →
-                      </button>
+                      {p.status !== "완료" && (
+                        <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedPatent(p); }}>
+                          매입 의사 타진 →
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2242,7 +2252,22 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* 문의 폼 - 모든 방문자에게 표시 */}
+                {/* 문의 폼 - 완료된 건은 안내 메시지만 표시 */}
+                {selectedPatent.status === "완료" ? (
+                  <div style={{
+                    padding: "32px 24px", textAlign: "center",
+                    background: "#f0f5f1", border: "1px solid #d5e8dc", marginTop: 18
+                  }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                    <h3 style={{ fontFamily: "'DM Serif Display',serif", fontSize: 18, fontWeight: 400, color: "#2d5a3e", margin: "0 0 6px" }}>
+                      기술이전 완료
+                    </h3>
+                    <p style={{ fontSize: 13, color: "var(--text-mid)", lineHeight: 1.6 }}>
+                      이 기술은 이미 기술이전이 완료되어 추가 문의가 불가능합니다.<br />
+                      유사한 기술에 관심이 있으시면 메인 페이지의 다른 특허를 확인하거나, 제니스특허법률사무소({FIRM_EMAIL})로 직접 문의해주세요.
+                    </p>
+                  </div>
+                ) : (
                 <div className="inquiry-form">
                   <h3>매입 의사 타진 · 기술이전 문의</h3>
                   <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
@@ -2287,6 +2312,7 @@ export default function App() {
                       📧 이메일로 문의 접수
                     </button>
                   </div>
+                )}
               </div>
             </div>
           </div>
