@@ -1165,64 +1165,25 @@ export default function App() {
         ? (bib.registerStatus.includes("등록") ? "등록완료" : "심사중")
         : "확인필요";
 
-      // PDF URL — 공고(등록) 우선, 없으면 공개
-      const kiprisPdfUrl = data.pdfUrls?.ann || data.pdfUrls?.pub || "";
-      const proxiedPdfUrl = kiprisPdfUrl ? `/api/kipris/pdf?url=${encodeURIComponent(kiprisPdfUrl)}` : "";
-      if (proxiedPdfUrl) setPdfUrl(proxiedPdfUrl);
+      // 전문 XML URL → PDF 프록시 경유
+      const xmlUrl = data.pdfUrls?.main || data.pdfUrls?.ann || data.pdfUrls?.pub || "";
+      if (xmlUrl) setPdfUrl(`/api/kipris/pdf?url=${encodeURIComponent(xmlUrl)}`);
 
+      // 도면 구성: XML 추출 도면설명 > Claude 도면설명 > 대표도면
       let figures = [];
-      const drawingUrl = bib.bigDrawing || bib.thumbnailPath || "";
-      const figDescs = data.smk?.figureDescs || [];
+      const drawingUrl = bib.bigDrawing || "";
+      const xmlFigDescs = data.figureDescsFromXml || [];
+      const aiFigDescs = data.smk?.figureDescs || [];
+      const figDescs = xmlFigDescs.length > 0 ? xmlFigDescs : aiFigDescs;
 
-      // PDF.js로 도면 페이지 추출 시도
-      if (proxiedPdfUrl && pdfjsRef.current) {
-        setLoadingStep("figures");
-        try {
-          const pdfRes = await fetch(proxiedPdfUrl);
-          const pdfBuf = await pdfRes.arrayBuffer();
-          const pdf = await pdfjsRef.current.getDocument({ data: pdfBuf }).promise;
-          const totalPages = pdf.numPages;
-
-          // 마지막 30% 페이지가 도면인 경우가 많음 — 최대 8페이지 추출
-          const figStartPage = Math.max(1, Math.floor(totalPages * 0.7));
-          const figPages = [];
-          for (let p = figStartPage; p <= totalPages && figPages.length < 8; p++) {
-            try {
-              const pg = await pdf.getPage(p);
-              const vp = pg.getViewport({ scale: 1 });
-              const scale = 300 / vp.height;
-              const sv = pg.getViewport({ scale });
-              const canvas = document.createElement("canvas");
-              canvas.width = sv.width;
-              canvas.height = sv.height;
-              await pg.render({ canvasContext: canvas.getContext("2d"), viewport: sv }).promise;
-              figPages.push({ page: p, dataUrl: canvas.toDataURL("image/png") });
-            } catch(e) {}
-          }
-
-          if (figPages.length > 0) {
-            figures = figPages.map((fp, i) => ({
-              title: figDescs[i] ? `[${figDescs[i].no}] ${figDescs[i].title}` : `[도면 p.${fp.page}]`,
-              desc: figDescs[i]?.desc || "",
-              imageUrl: fp.dataUrl,
-            }));
-          }
-        } catch(e) {
-          console.warn("PDF figure extraction error:", e);
-        }
-      }
-
-      // PDF 추출 실패 시 KIPRIS 대표도면 + Claude 설명으로 대체
-      if (figures.length === 0) {
-        if (figDescs.length > 0) {
-          figures = figDescs.map((fd, i) => ({
-            title: `[${fd.no}] ${fd.title}`,
-            desc: fd.desc,
-            imageUrl: i === 0 && drawingUrl ? drawingUrl : null,
-          }));
-        } else if (drawingUrl) {
-          figures = [{ title: "[대표도면]", desc: "", imageUrl: drawingUrl }];
-        }
+      if (figDescs.length > 0) {
+        figures = figDescs.map((fd, i) => ({
+          title: fd.title ? `[${fd.no}] ${fd.title}` : `[${fd.no}]`,
+          desc: fd.desc || "",
+          imageUrl: i === 0 && drawingUrl ? drawingUrl : null,
+        }));
+      } else if (drawingUrl) {
+        figures = [{ title: "[대표도면]", desc: "", imageUrl: drawingUrl }];
       }
 
       setSmkData({
@@ -1239,6 +1200,7 @@ export default function App() {
         registrationNumber: bib.registerNumber || null,
         registrationDate: fmtDate(bib.registerDate),
         publicationNumber: bib.openNumber || null,
+        fullTextXml: data.fullTextXml || null,
         ...(data.smk || {}),
       });
 
@@ -1726,7 +1688,7 @@ export default function App() {
                         ⚖️ 특허 법률현황
                       </button>
                       <button className={`smk-tab ${smkTab === "pdf" ? "active" : ""}`} onClick={() => setSmkTab("pdf")}>
-                        📄 원문 PDF
+                        📄 명세서 전문
                       </button>
                     </div>
                     {smkTab === "smk" ? (
@@ -1865,11 +1827,23 @@ export default function App() {
                       </div>
                     ) : (
                       <div>
-                        {pdfUrl ? (
+                        {smkData?.fullTextXml ? (
+                          <div style={{
+                            maxHeight: 500, overflowY: "auto", padding: "20px",
+                            border: "1px solid var(--border)", background: "var(--white)",
+                            fontSize: 13, lineHeight: 1.8, color: "var(--text-mid)",
+                            fontFamily: "'Noto Sans KR', sans-serif", whiteSpace: "pre-wrap", wordBreak: "break-all"
+                          }}>
+                            {smkData.fullTextXml
+                              .replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
+                              .replace(/<[^>]+>/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+                            }
+                          </div>
+                        ) : pdfUrl ? (
                           <iframe src={pdfUrl} className="pdf-viewer" title="Patent PDF" />
                         ) : (
                           <div className="pdf-viewer" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-light)", fontSize: 13 }}>
-                            전문 PDF가 없습니다. 공개 또는 등록되지 않은 출원일 수 있습니다.
+                            전문 파일이 없습니다. 공개 또는 등록되지 않은 출원일 수 있습니다.
                           </div>
                         )}
                       </div>
