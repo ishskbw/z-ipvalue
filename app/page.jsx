@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 
 
@@ -137,7 +138,7 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
   color:#fff; line-height:1.1; letter-spacing:-1px;
 }
 .hero h1 span { color:var(--gold); font-family:'DM Serif Display',serif; font-style:normal; }
-.hero-desc { font-size:15px; color:#d5d0ca; max-width:560px; margin-top:28px; line-height:1.8; }
+.hero-desc { font-size:15px; color:#d5d0ca; max-width:560px; margin-top:28px; line-height:1.8; word-break:keep-all; }
 
 .stats-row { display:flex; gap:48px; margin-top:48px; }
 .stat-card { text-align:left; }
@@ -470,12 +471,45 @@ function Badge({ text, colors }) {
 
 // ─── Main App ─────────────────────────────────────────
 export default function App() {
-  const [page, setPage] = useState("browse");
+  // useSearchParams는 Suspense boundary 필요 (Next.js 요구사항)
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: "#999" }}>로딩중...</div>}>
+      <AppContent />
+    </Suspense>
+  );
+}
+
+function AppContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ─── URL이 상태의 원본 (Single Source of Truth) ───
+  const page = searchParams.get("page") || "browse";
+  const patentParam = searchParams.get("patent");
+
+  // URL 업데이트 헬퍼
+  const updateUrl = (updates) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === "" || value === "browse") {
+        params.delete(key);
+      } else {
+        params.set(key, String(value));
+      }
+    });
+    const qs = params.toString();
+    router.push(qs ? `?${qs}` : "/");
+  };
+
+  // page 변경
+  const setPage = (newPage) => {
+    updateUrl({ page: newPage, patent: null }); // 페이지 바뀌면 상세 모달도 닫힘
+  };
+
   const [search, setSearch] = useState("");
   const [fieldFilter, setFieldFilter] = useState("전체");
   const [typeFilter, setTypeFilter] = useState("전체");
   const [statusFilter, setStatusFilter] = useState("전체");
-  const [selectedPatent, setSelectedPatent] = useState(null);
   const [toast, setToast] = useState(null);
 
   // Supabase 특허 데이터
@@ -485,6 +519,14 @@ export default function App() {
   const [supabaseSession, setSupabaseSession] = useState(null);
   // 카테고리 확인 모달 상태 (저장 전에 카테고리 재확인용)
   const [categoryConfirm, setCategoryConfirm] = useState(null); // { suggested: 'AI/SW', selected: 'AI/SW', dealType: '라이선스' } or null
+
+  // ─── selectedPatent도 URL에서 파생 ───
+  const selectedPatent = patentParam
+    ? patents.find((p) => String(p.id) === patentParam) || null
+    : null;
+  const setSelectedPatent = (patent) => {
+    updateUrl({ patent: patent ? patent.id : null });
+  };
 
   // DB → UI 필드 매핑 (카드 렌더링용)
   const mapDbRowToUi = (p) => ({
@@ -576,16 +618,7 @@ export default function App() {
   const fileInputRef = useRef(null);
   const pdfjsRef = useRef(null);
 
-  // ─── 브라우저 뒤로가기 지원 ───────────────
-  // 모달/페이지가 열릴 때 history에 push, 뒤로가기 시 닫도록 처리
-  useEffect(() => {
-    if (!selectedPatent) return;
-    window.history.pushState({ z: "detail" }, "");
-    const onPop = () => setSelectedPatent(null);
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [selectedPatent]);
-
+  // 모달(categoryConfirm, adminModal)의 뒤로가기 지원 — 페이지/patent는 URL로 해결됨
   useEffect(() => {
     if (!categoryConfirm) return;
     window.history.pushState({ z: "catConfirm" }, "");
@@ -601,14 +634,6 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [adminModal]);
-
-  useEffect(() => {
-    if (page === "browse") return;
-    window.history.pushState({ z: "page", page }, "");
-    const onPop = () => setPage("browse");
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [page]);
 
   // ─── Web Crypto API helpers ───────────────────────────
   const getCrypto = () => typeof window !== "undefined" ? (window.crypto || window.msCrypto) : null;
@@ -1356,8 +1381,6 @@ export default function App() {
           <div className="top-bar-right">
             <span className="lang-btn active">국문</span>
             <span className="lang-btn">ENG</span>
-            <span className="lang-btn">日本語</span>
-            <span className="lang-btn">中文</span>
             <a
               href="https://www.ipzenith.com"
               target="_blank"
