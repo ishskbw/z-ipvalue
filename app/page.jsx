@@ -577,48 +577,60 @@ export default function App() {
 
   // Supabase 특허 데이터 (로딩 전까지 샘플 데이터 표시)
   const [patents, setPatents] = useState(SAMPLE_PATENTS);
+  // Supabase 로그인 세션 (플랫폼 등록 신청 시 필요)
+  const [supabaseSession, setSupabaseSession] = useState(null);
+
+  // DB → UI 필드 매핑 (카드 렌더링용)
+  const mapDbRowToUi = (p) => ({
+    id: p.id,
+    title: p.title,
+    field: p.category,
+    type: p.deal_type,
+    status: p.status,
+    trl: p.trl_level || 0,
+    org: p.holder || "",
+    inventor: p.inventor || "",
+    patentNo: p.application_no || "",
+    price: p.price_display || "협의",
+    filingDate: p.application_date ? p.application_date.replace(/-/g, ".") : "",
+    examStatus: p.examination_status || "",
+    overseas: p.foreign_countries || [],
+    summary: p.description || "",
+    keywords: p.tags || [],
+    likes: p.likes || 0,
+    detail: p.detail || p.description || "",
+    figures: p.figures || [],
+  });
+
+  // Supabase에서 공개된 특허 목록 불러오기
+  const loadPatentsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("patents")
+        .select("*")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setPatents(data.map(mapDbRowToUi));
+      }
+    } catch (err) {
+      console.error("Supabase 특허 로딩 실패, 샘플 데이터 사용:", err);
+    }
+  };
 
   useEffect(() => {
-    async function loadPatents() {
-      try {
-        const { data, error } = await supabase
-          .from("patents")
-          .select("*")
-          .eq("is_published", true)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        if (data && data.length > 0) {
-          // DB 필드를 기존 UI가 쓰는 이름으로 매핑
-          const mapped = data.map((p) => ({
-            id: p.id,
-            title: p.title,
-            field: p.category,
-            type: p.deal_type,
-            status: p.status,
-            trl: p.trl_level || 0,
-            org: p.holder || "",
-            inventor: p.inventor || "",
-            patentNo: p.application_no || "",
-            price: p.price_display || "협의",
-            filingDate: p.application_date
-              ? p.application_date.replace(/-/g, ".")
-              : "",
-            examStatus: p.examination_status || "",
-            overseas: p.foreign_countries || [],
-            summary: p.description || "",
-            keywords: p.tags || [],
-            likes: p.likes || 0,
-            detail: p.detail || p.description || "",
-            figures: p.figures || [],
-          }));
-          setPatents(mapped);
-        }
-      } catch (err) {
-        console.error("Supabase 특허 로딩 실패, 샘플 데이터 사용:", err);
-      }
-    }
-    loadPatents();
+    loadPatentsFromSupabase();
+    // Supabase 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSupabaseSession(session);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSupabaseSession(session);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   // Upload state
@@ -870,6 +882,96 @@ export default function App() {
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // ────────────────────────────────────────────
+  // 플랫폼 등록 신청 → Supabase에 저장
+  // ────────────────────────────────────────────
+  const saveSmkToSupabase = async () => {
+    if (!supabaseSession) {
+      showToast("❌ /admin 에서 먼저 로그인해주세요.");
+      return;
+    }
+    if (!smkData) return;
+
+    // 카테고리 매핑 (Claude가 자유롭게 반환한 field → 허용된 enum 값)
+    const mapCategory = (raw) => {
+      if (!raw) return "AI/SW";
+      const r = raw.toString();
+      if (r.match(/AI|SW|소프트웨어|알고리즘|인공지능/i)) return "AI/SW";
+      if (r.match(/바이오|의료|의약|제약|생명|약물/)) return "바이오";
+      if (r.match(/소재|재료|복합|고분자|나노/)) return "소재";
+      if (r.match(/에너지|전지|태양|배터리|연료/)) return "에너지";
+      if (r.match(/전자|반도체|센서|디스플레이/)) return "전자";
+      if (r.match(/환경|수질|대기|폐기물/)) return "환경";
+      return "AI/SW";
+    };
+
+    const mapExamStatus = (raw) => {
+      if (!raw) return null;
+      if (raw.includes("등록")) return "등록완료";
+      if (raw.includes("심사")) return "심사중";
+      return null;
+    };
+
+    const convertDate = (dateStr) => {
+      if (!dateStr || dateStr === "-") return null;
+      const m = dateStr.match(/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})/);
+      return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+    };
+
+    // 상세설명: Claude가 생성한 여러 섹션을 하나로 결합
+    const detail = [
+      smkData.core && `■ 핵심 기술\n${smkData.core}`,
+      smkData.advantage && `■ 특징 및 장점\n${smkData.advantage}`,
+      smkData.application && `■ 활용 분야\n${smkData.application}`,
+      smkData.effect && `■ 기대 효과\n${smkData.effect}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const patentData = {
+      title: smkData.title || "제목 없음",
+      description: smkData.summary || null,
+      detail: detail || null,
+      category: mapCategory(smkData.field),
+      deal_type: "라이선스", // 기본값, /admin에서 수정 가능
+      status: "신규",
+      trl_level: smkData.trl ? parseInt(smkData.trl) : null,
+      application_date: convertDate(smkData.filingDate),
+      application_no: smkData.patentNo || null,
+      registration_no: smkData.registrationNumber || null,
+      examination_status: mapExamStatus(smkData.examStatus),
+      foreign_countries: smkData.overseas || [],
+      tags: smkData.keywords || [],
+      holder: smkData.org || null,
+      inventor: smkData.inventor || null,
+      price_display: null,
+      contact_email: null,
+      is_published: true,
+      figures: (smkData.figures || []).map((f) => ({
+        title: f.title || "",
+        desc: f.desc || "",
+        icon: "📊",
+      })),
+    };
+
+    const { error } = await supabase.from("patents").insert([patentData]);
+    if (error) {
+      showToast("❌ 저장 실패: " + error.message);
+      console.error("Supabase insert error:", error);
+      return;
+    }
+
+    showToast("✅ Supabase에 저장되었습니다. 기술 찾기에서 확인하세요.");
+
+    // 목록 갱신 및 초기 화면으로
+    await loadPatentsFromSupabase();
+    setSmkData(null);
+    setUploadedFile(null);
+    setPdfUrl(null);
+    setPatentInput("");
+    setTimeout(() => setPage("browse"), 800);
   };
 
   const updateInquiry = (key, val) => setInquiryForm(prev => ({ ...prev, [key]: val }));
@@ -1782,11 +1884,11 @@ export default function App() {
                           </div>
                         )}
 
-                        <button className="smk-register-btn" onClick={() => showToast("✅ 플랫폼 등록이 신청되었습니다. 변리사 검토 후 게시됩니다.")}>
+                        <button className="smk-register-btn" onClick={saveSmkToSupabase}>
                           플랫폼 등록 신청
                         </button>
                         <p style={{ textAlign: "center", fontSize: 11, color: "var(--text-light)", marginTop: 8 }}>
-                          * 변리사 검토 후 플랫폼에 게시됩니다. 수수료 안내는 별도 연락드립니다.
+                          * /admin 에서 먼저 로그인한 후 이 버튼을 눌러주세요. 등록된 특허는 메인 페이지에 즉시 공개됩니다.
                         </p>
                       </div>
                     ) : smkTab === "legal" ? (
