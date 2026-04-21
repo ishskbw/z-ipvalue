@@ -4,17 +4,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../lib/supabase";
 
 
-const FIELDS = ["전체", "AI/SW", "바이오", "소재", "에너지", "전자", "환경"];
+const FIELDS = ["전체", "제약", "바이오", "진단", "화장료", "식품", "소재", "에너지", "환경", "AI/SW", "전자"];
 const TYPES = ["전체", "라이선스", "매각", "라이선스/매각"];
 const STATUSES = ["전체", "공개", "협의중", "완료"];
 
 const fieldColors = {
-  "AI/SW": { bg: "#f0ede8", text: "#4338CA", border: "#e0dbd4" },
+  // 바이오·의료 계열 — 녹색/청록 톤
+  "제약":   { bg: "#f0ede8", text: "#7E22CE", border: "#e0dbd4" },
   "바이오": { bg: "#f0ede8", text: "#047857", border: "#e0dbd4" },
-  "소재": { bg: "#f0ede8", text: "#C2410C", border: "#e0dbd4" },
+  "진단":   { bg: "#f0ede8", text: "#0F766E", border: "#e0dbd4" },
+  // 소비재 계열 — 따뜻한 톤
+  "화장료": { bg: "#f0ede8", text: "#BE185D", border: "#e0dbd4" },
+  "식품":   { bg: "#f0ede8", text: "#A16207", border: "#e0dbd4" },
+  // 산업·소재 계열 — 중성 톤
+  "소재":   { bg: "#f0ede8", text: "#C2410C", border: "#e0dbd4" },
   "에너지": { bg: "#f0ede8", text: "#8a6d2b", border: "#e0dbd4" },
-  "전자": { bg: "#f0ede8", text: "#0369A1", border: "#e0dbd4" },
-  "환경": { bg: "#f0ede8", text: "#15803D", border: "#e0dbd4" },
+  "환경":   { bg: "#f0ede8", text: "#15803D", border: "#e0dbd4" },
+  // 기술 계열 — 블루 톤
+  "AI/SW":  { bg: "#f0ede8", text: "#4338CA", border: "#e0dbd4" },
+  "전자":   { bg: "#f0ede8", text: "#0369A1", border: "#e0dbd4" },
 };
 
 const statusColors = {
@@ -867,16 +875,24 @@ function AppContent() {
     }
     if (!smkData) return;
 
-    // Claude가 반환한 field를 6개 카테고리 중 하나로 추정
+    // Claude가 반환한 field를 10개 카테고리 중 하나로 추정
     const suggestCategory = (raw) => {
       if (!raw) return "AI/SW";
       const r = raw.toString();
-      if (r.match(/AI|SW|소프트웨어|알고리즘|인공지능|데이터|딥러닝|머신러닝/i)) return "AI/SW";
-      if (r.match(/바이오|의료|의약|제약|생명|약물|세포|단백|유전/)) return "바이오";
-      if (r.match(/소재|재료|복합|고분자|나노|합금|세라믹/)) return "소재";
-      if (r.match(/에너지|전지|태양|배터리|연료|발전|수소/)) return "에너지";
-      if (r.match(/전자|반도체|센서|디스플레이|회로|통신/)) return "전자";
-      if (r.match(/환경|수질|대기|폐기물|오염|친환경/)) return "환경";
+      // 바이오·의료 계열 (우선순위 순으로 체크)
+      if (r.match(/진단|체외진단|분자진단|영상진단|바이오마커|바이오센서|검사키트/)) return "진단";
+      if (r.match(/제약|신약|의약품|합성의약|약물전달|DDS|제제|투약|약학|약물동태/)) return "제약";
+      if (r.match(/바이오|생명|세포|유전자|단백질|항체|백신|의료기기|의료|생체/)) return "바이오";
+      // 소비재 계열
+      if (r.match(/화장|코스메|미용|피부|뷰티|코스메슈티컬/)) return "화장료";
+      if (r.match(/식품|건강기능|음료|영양|식자재|가공식품|조미/)) return "식품";
+      // 산업·소재 계열
+      if (r.match(/소재|재료|복합|고분자|나노|합금|세라믹|섬유|코팅/)) return "소재";
+      if (r.match(/에너지|전지|태양|배터리|연료|발전|수소|이차전지|전력/)) return "에너지";
+      if (r.match(/환경|수질|대기|폐기물|오염|친환경|탄소|재활용|수처리/)) return "환경";
+      // 기술 계열
+      if (r.match(/AI|SW|소프트웨어|알고리즘|인공지능|데이터|딥러닝|머신러닝|프로그램/i)) return "AI/SW";
+      if (r.match(/전자|반도체|센서|디스플레이|회로|통신|IoT|무선/)) return "전자";
       return "AI/SW";
     };
 
@@ -1163,7 +1179,7 @@ function AppContent() {
 반드시 아래 JSON 형식으로만 응답하고, 다른 텍스트는 포함하지 마세요.
 {
   "title": "기술명",
-  "field": "기술 분야",
+  "field": "다음 중 하나만 선택: 제약, 바이오, 진단, 화장료, 식품, 소재, 에너지, 환경, AI/SW, 전자",
   "trl": 숫자(1-9),
   "patentNo": "출원번호 (10-YYYY-NNNNNNN 형식)",
   "filingDate": "출원일 (YYYY.MM.DD)",
@@ -2152,7 +2168,7 @@ function AppContent() {
                       fontFamily: "inherit", outline: "none"
                     }}
                   >
-                    {["AI/SW", "바이오", "소재", "에너지", "전자", "환경"].map((c) => (
+                    {["제약", "바이오", "진단", "화장료", "식품", "소재", "에너지", "환경", "AI/SW", "전자"].map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
