@@ -547,6 +547,35 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Upload state
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [smkData, setSmkData] = useState(null);
+  const [smkLoading, setSmkLoading] = useState(false);
+  const [smkTab, setSmkTab] = useState("smk");
+  const [dragOver, setDragOver] = useState(false);
+  const [kiprisKey, setKiprisKey] = useState("");
+  const [loadingStep, setLoadingStep] = useState("");
+  const [uploadMode, setUploadMode] = useState("number"); // "pdf" or "number"
+  const [patentInput, setPatentInput] = useState("");
+  const [patentInputType, setPatentInputType] = useState("application");
+  const [kiprisKeySaved, setKiprisKeySaved] = useState(false);
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [adminAuth, setAdminAuth] = useState(false);
+  const [adminModal, setAdminModal] = useState(false);
+  const [adminPwInput, setAdminPwInput] = useState("");
+  const [adminPwError, setAdminPwError] = useState("");
+  const [adminHasPassword, setAdminHasPassword] = useState(false);
+  const [adminSetupMode, setAdminSetupMode] = useState(false);
+  const [adminPwConfirm, setAdminPwConfirm] = useState("");
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState(0);
+  const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=final
+  const [inquiryForm, setInquiryForm] = useState({ company: "", name: "", contact: "", dealType: "", message: "" });
+  const FIRM_EMAIL = "zenith@ipzenith.com";
+  const fileInputRef = useRef(null);
+  const pdfjsRef = useRef(null);
+
   // ─── 브라우저 뒤로가기 지원 ───────────────
   // 모달/페이지가 열릴 때 history에 push, 뒤로가기 시 닫도록 처리
   useEffect(() => {
@@ -580,35 +609,6 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [page]);
-
-  // Upload state
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [pdfUrl, setPdfUrl] = useState(null);
-  const [smkData, setSmkData] = useState(null);
-  const [smkLoading, setSmkLoading] = useState(false);
-  const [smkTab, setSmkTab] = useState("smk");
-  const [dragOver, setDragOver] = useState(false);
-  const [kiprisKey, setKiprisKey] = useState("");
-  const [loadingStep, setLoadingStep] = useState("");
-  const [uploadMode, setUploadMode] = useState("number"); // "pdf" or "number"
-  const [patentInput, setPatentInput] = useState("");
-  const [patentInputType, setPatentInputType] = useState("application");
-  const [kiprisKeySaved, setKiprisKeySaved] = useState(false);
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [adminAuth, setAdminAuth] = useState(false);
-  const [adminModal, setAdminModal] = useState(false);
-  const [adminPwInput, setAdminPwInput] = useState("");
-  const [adminPwError, setAdminPwError] = useState("");
-  const [adminHasPassword, setAdminHasPassword] = useState(false);
-  const [adminSetupMode, setAdminSetupMode] = useState(false);
-  const [adminPwConfirm, setAdminPwConfirm] = useState("");
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [lockoutUntil, setLockoutUntil] = useState(0);
-  const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=final
-  const [inquiryForm, setInquiryForm] = useState({ company: "", name: "", contact: "", dealType: "", message: "" });
-  const FIRM_EMAIL = "zenith@ipzenith.com";
-  const fileInputRef = useRef(null);
-  const pdfjsRef = useRef(null);
 
   // ─── Web Crypto API helpers ───────────────────────────
   const getCrypto = () => typeof window !== "undefined" ? (window.crypto || window.msCrypto) : null;
