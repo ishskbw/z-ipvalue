@@ -52,13 +52,30 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
 
 .platform { min-height:100vh; display:flex; flex-direction:column; }
 
-/* ── Top Bar ── */
+/* ── Top Bar ── ipzenith.com과 통일된 스타일 */
 .top-bar {
-  background:var(--dark); color:var(--text-lighter); padding:12px 32px;
+  background:var(--dark); color:var(--text-lighter); padding:10px 32px;
   font-size:11px; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center;
 }
-.top-bar a { color:var(--text-lighter); text-decoration:none; margin-right:16px; transition:color .2s; }
+.top-bar-left { display:flex; align-items:center; gap:14px; }
+.top-bar-right { display:flex; align-items:center; gap:6px; }
+.top-bar a { color:var(--text-lighter); text-decoration:none; transition:color .2s; }
 .top-bar a:hover { color:#fff; }
+.top-bar-item { color:var(--text-lighter); }
+.top-bar-divider { width:1px; height:10px; background:rgba(255,255,255,.15); }
+.lang-btn {
+  padding:3px 9px; font-size:10px; font-weight:500; letter-spacing:.5px;
+  color:var(--text-lighter); border:1px solid transparent; cursor:pointer; transition:all .2s;
+  font-family:'Sora','Noto Sans KR',sans-serif;
+}
+.lang-btn:hover { color:#fff; }
+.lang-btn.active { background:var(--oxblood); color:#fff; border-color:var(--oxblood); }
+.top-login-btn {
+  margin-left:8px; padding:4px 12px; font-size:10px; font-weight:500; letter-spacing:.5px;
+  border:1px solid rgba(255,255,255,.25); color:var(--text-lighter);
+  transition:all .2s; font-family:'Sora','Noto Sans KR',sans-serif;
+}
+.top-login-btn:hover { border-color:#fff; color:#fff; }
 
 /* ── Header ── */
 .header {
@@ -73,7 +90,7 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
   letter-spacing:.5px; line-height:1; display:inline-flex; align-items:baseline;
 }
 .logo-text .logo-z { color:var(--oxblood); font-size:40px; font-weight:400; margin-right:1px; position:relative; top:2px; letter-spacing:-2px; }
-.logo-sub { font-size:10px; color:var(--text-light); letter-spacing:2.5px; text-transform:uppercase; margin-top:-2px; }
+.logo-sub { font-size:10px; color:var(--text-light); letter-spacing:1px; margin-top:2px; font-weight:500; }
 
 .nav { display:flex; gap:0; }
 .nav-btn {
@@ -1290,13 +1307,30 @@ export default function App() {
     <>
       <style>{css}</style>
       <div className="platform">
-        {/* Top Bar */}
+        {/* Top Bar — ipzenith.com과 통일된 스타일 */}
         <div className="top-bar">
-          <div>
-            <a href="https://ipzenith.com" target="_blank" rel="noopener">ipzenith.com</a>
-            <a href="mailto:info@ipzenith.com">Contact</a>
+          <div className="top-bar-left">
+            <span className="top-bar-item">Since 2003</span>
+            <span className="top-bar-divider" />
+            <a href="tel:+8228883066">+82-2-888-3066</a>
+            <span className="top-bar-divider" />
+            <a href="mailto:zenith@ipzenith.com">zenith@ipzenith.com</a>
           </div>
-          <span>IP Technology Transfer Platform</span>
+          <div className="top-bar-right">
+            <span className="lang-btn active">국문</span>
+            <span className="lang-btn">ENG</span>
+            <span className="lang-btn">日本語</span>
+            <span className="lang-btn">中文</span>
+            <a
+              href="https://www.ipzenith.com"
+              target="_blank"
+              rel="noopener"
+              className="top-login-btn"
+              title="제니스특허법률사무소 홈페이지"
+            >
+              ipzenith.com
+            </a>
+          </div>
         </div>
 
         {/* Header */}
@@ -1304,7 +1338,7 @@ export default function App() {
           <div className="header-left">
             <div className="logo-area" onClick={() => setPage("browse")}>
               <div className="logo-text"><span className="logo-z">Z</span>enithvalue</div>
-              <div className="logo-sub">제니스특허법률사무소 운영</div>
+              <div className="logo-sub">제니스특허법률사무소 IP 거래 플랫폼</div>
             </div>
             <nav className="nav">
               <button className={`nav-btn ${page === "browse" ? "active" : ""}`} onClick={() => setPage("browse")}>기술 찾기</button>
@@ -1327,10 +1361,10 @@ export default function App() {
           <section className="hero">
             <div className="hero-content">
               <div className="hero-firm">제니스특허법률사무소 · Technology Transfer</div>
-              <h1>대학·연구소 <span>특허 기술</span>을<br/>기업과 연결합니다</h1>
+              <h1>제니스가 선별한 <span>Value</span>,<br/>그 가치를 보장합니다.</h1>
               <p className="hero-desc">
-                제니스특허법률사무소에 의해 운영되는 IP 기술이전 플랫폼입니다.
-                대학·연구소의 우수 특허를 기업에 소개하고, 기술 매입·라이선스 상담을 지원합니다.
+                창업사업 및 코스닥 기술특례상장 심의위원이 직접 선별·검증한 사업화 유망 특허만을 소개합니다.
+                기술 매입·라이선스 상담 전 과정을 지원합니다.
               </p>
               <div className="stats-row">
                 <div className="stat-card"><div className="stat-num">{patents.length}</div><div className="stat-label">등록 기술</div></div>
@@ -2011,7 +2045,7 @@ export default function App() {
             <div className="footer-left">
               <div className="footer-name">Zenithvalue</div>
               <div className="footer-info">
-                제니스특허법률사무소 운영 · IP 기술이전 플랫폼<br/>
+                제니스특허법률사무소 IP 거래 플랫폼<br/>
                 <a href="https://z-ipvalue.com" target="_blank" rel="noopener">z-ipvalue.com</a>
                 <span style={{ margin: "0 6px", color: "var(--text-lighter)" }}>·</span>
                 법률 지원: <a href="https://ipzenith.com" target="_blank" rel="noopener">제니스특허법률사무소 (ipzenith.com)</a>
