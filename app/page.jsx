@@ -2,125 +2,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
-const SAMPLE_PATENTS = [
-  {
-    id: 1, title: "그래핀 기반 고효율 방열 복합소재", field: "소재", type: "라이선스",
-    status: "협의중", trl: 6, org: "한국과학기술원", inventor: "김정호 교수",
-    patentNo: "10-2024-0012345", price: "협의 후 결정",
-    filingDate: "2024.01.15", examStatus: "심사중", overseas: ["PCT", "US", "JP"],
-    summary: "그래핀 나노플레이트릿을 활용한 고열전도성 복합소재로, 기존 방열 소재 대비 열전도율 300% 향상. 전자기기 및 전기차 배터리 방열 솔루션에 적용 가능.",
-    keywords: ["그래핀", "방열", "복합소재", "열전도"], likes: 24,
-    detail: "본 발명은 그래핀 나노플레이트릿의 배향 제어 기술을 통해 면방향 열전도율을 극대화한 방열 복합소재에 관한 것입니다. 기존 알루미나, 질화붕소 기반 방열소재 대비 3배 이상의 열전도 성능을 구현하며, 대면적 양산이 가능한 공정 기술을 포함합니다.",
-    figures: [
-      { title: "[도 1] 그래핀 복합소재 단면 구조도", desc: "그래핀 나노플레이트릿이 면방향으로 배향된 복합소재의 단면 구조. 상부 방열층과 하부 기판 사이 열전도 경로를 형성한다.", icon: "🔬" },
-      { title: "[도 2] 열전도율 비교 그래프", desc: "기존 알루미나·질화붕소 소재 대비 본 발명 소재의 열전도율을 비교한 그래프. 면방향 300% 향상 확인.", icon: "📊" }
-    ]
-  },
-  {
-    id: 2, title: "AI 기반 실시간 작물 병해 진단 시스템", field: "AI/SW", type: "매각",
-    status: "등록", trl: 7, org: "서울대학교", inventor: "이수민 교수",
-    patentNo: "10-2023-0098765", price: "5,000만원",
-    filingDate: "2023.06.20", examStatus: "등록완료", overseas: ["US", "CN"],
-    summary: "딥러닝 영상 분석으로 작물 잎사귀 촬영만으로 12종 병해를 95% 이상 정확도로 실시간 진단하는 모바일 시스템.",
-    keywords: ["딥러닝", "작물병해", "영상진단", "스마트팜"], likes: 41,
-    detail: "CNN 기반 다중 분류 모델과 경량화 기술을 결합하여 모바일 환경에서 실시간 추론이 가능합니다. 토마토, 고추, 딸기 등 주요 작물 12종 병해에 대해 95.3%의 진단 정확도를 달성했습니다.",
-    figures: [
-      { title: "[도 1] 시스템 구성도", desc: "모바일 카메라 → 영상 전처리 → CNN 추론 엔진 → 병해 진단 결과 출력의 전체 파이프라인.", icon: "📱" },
-      { title: "[도 2] 병해 분류 정확도", desc: "12종 작물 병해에 대한 분류 정확도. 평균 95.3%, 최고 98.1%(토마토 역병) 달성.", icon: "📊" }
-    ]
-  },
-  {
-    id: 3, title: "생분해성 고분자 기반 약물전달 마이크로니들", field: "바이오", type: "라이선스",
-    status: "등록", trl: 5, org: "포항공과대학교", inventor: "박지영 교수",
-    patentNo: "10-2024-0034567", price: "3,000만원~",
-    filingDate: "2024.03.08", examStatus: "심사중", overseas: ["PCT"],
-    summary: "PLA/PLGA 블렌딩 기반 생분해성 마이크로니들로 피부 투과형 약물 전달. 인슐린, 백신 등 거대분자 약물의 무통 투여 가능.",
-    keywords: ["마이크로니들", "약물전달", "생분해성", "경피투과"], likes: 33,
-    detail: "생분해성 고분자의 분해 속도를 제어하여 약물 방출 프로파일을 설계할 수 있는 플랫폼 기술입니다. 동물실험에서 기존 주사 대비 동등한 약물 흡수율을 확인했습니다.",
-    figures: [
-      { title: "[도 1] 마이크로니들 어레이 SEM 이미지", desc: "PLA/PLGA 블렌딩 기반 마이크로니들의 전자현미경 이미지. 높이 600μm, 팁 직경 10μm.", icon: "🔬" },
-      { title: "[도 2] 약물 방출 프로파일", desc: "시간 경과에 따른 인슐린 방출 곡선. 24시간에 걸쳐 지속적 방출 달성.", icon: "📈" }
-    ]
-  },
-  {
-    id: 4, title: "페로브스카이트 태양전지 대면적 코팅 공정", field: "에너지", type: "매각",
-    status: "신규", trl: 4, org: "KIST", inventor: "정민수 박사",
-    patentNo: "10-2024-0056789", price: "협의 후 결정",
-    filingDate: "2024.05.12", examStatus: "심사중", overseas: [],
-    summary: "슬롯다이 코팅 기반 페로브스카이트 태양전지 대면적(30×30cm) 제조 공정. 소면적 대비 효율 저하 5% 이내 달성.",
-    keywords: ["페로브스카이트", "태양전지", "대면적", "코팅공정"], likes: 18,
-    detail: "슬롯다이 코팅의 유체역학적 조건을 최적화하여 대면적에서도 균일한 박막 형성이 가능합니다. 30×30cm 기판에서 PCE 21.3%를 달성했습니다.",
-    figures: [
-      { title: "[도 1] 슬롯다이 코팅 장치 개략도", desc: "슬롯다이 헤드, 기판 이송부, 건조 챔버로 구성된 대면적 코팅 장치의 구조.", icon: "⚙️" },
-      { title: "[도 2] 대면적 효율 분포", desc: "30×30cm 기판 위 64개 셀의 효율 분포. 균일도 ±0.8% 이내.", icon: "📊" }
-    ]
-  },
-  {
-    id: 5, title: "자율주행 LiDAR 포인트클라우드 압축 알고리즘", field: "AI/SW", type: "라이선스",
-    status: "협의중", trl: 6, org: "KAIST", inventor: "최동현 교수",
-    patentNo: "10-2023-0076543", price: "8,000만원",
-    filingDate: "2023.08.30", examStatus: "등록완료", overseas: ["US", "EP", "JP", "CN"],
-    summary: "3D LiDAR 포인트클라우드 데이터를 실시간 압축하여 V2X 통신 대역폭을 90% 절감하면서 객체 인식 정확도 유지.",
-    keywords: ["LiDAR", "포인트클라우드", "자율주행", "데이터압축"], likes: 37,
-    detail: "옥트리 기반 공간 분할과 딥러닝 엔트로피 코딩을 결합한 하이브리드 압축 기법으로, 실시간 처리(30fps)와 높은 압축률을 동시에 달성합니다.",
-    figures: [
-      { title: "[도 1] 압축 알고리즘 흐름도", desc: "포인트클라우드 입력 → 옥트리 분할 → 딥러닝 엔트로피 코딩 → 비트스트림 출력 과정.", icon: "🔄" },
-      { title: "[도 2] 압축률 대비 인식 정확도", desc: "압축률 90%에서도 객체 인식 mAP 0.92 유지. 기존 방식 대비 15% 향상.", icon: "📊" }
-    ]
-  },
-  {
-    id: 6, title: "산화아연 나노와이어 기반 유연 압전 센서", field: "전자", type: "매각",
-    status: "등록", trl: 5, org: "성균관대학교", inventor: "한소영 교수",
-    patentNo: "10-2024-0023456", price: "4,500만원",
-    filingDate: "2024.02.28", examStatus: "등록완료", overseas: ["PCT", "US"],
-    summary: "ZnO 나노와이어 어레이를 유연 기판 위에 직접 성장시켜 제작한 고감도 압전 센서. 웨어러블 헬스케어 및 로봇 촉각센서 적용.",
-    keywords: ["압전센서", "나노와이어", "유연전자", "웨어러블"], likes: 29,
-    detail: "수열합성법으로 유연 PI 기판 위에 수직 배향된 ZnO 나노와이어를 직접 성장시키는 저온 공정 기술입니다. 0.1kPa 미만의 압력 감지가 가능합니다.",
-    figures: [
-      { title: "[도 1] 유연 센서 구조 단면도", desc: "PI 기판 / ZnO 나노와이어 어레이 / 상부 전극의 3층 샌드위치 구조.", icon: "🔬" },
-      { title: "[도 2] 압력 감도 특성 곡선", desc: "0.01~100kPa 범위 압력에 대한 센서 출력 전압. 0.1kPa 미만 분해능 확인.", icon: "📈" }
-    ]
-  },
-  {
-    id: 7, title: "미세플라스틱 실시간 검출용 라만 분광 센서", field: "환경", type: "라이선스",
-    status: "신규", trl: 3, org: "한국환경연구원", inventor: "오진석 박사",
-    patentNo: "10-2024-0067890", price: "협의 후 결정",
-    filingDate: "2024.07.01", examStatus: "심사중", overseas: [],
-    summary: "SERS 기반 휴대용 라만 분광 센서로 수질 내 미세플라스틱을 현장에서 실시간 정성·정량 분석. 10μm 이하 입자 검출 가능.",
-    keywords: ["미세플라스틱", "라만분광", "SERS", "수질분석"], likes: 15,
-    detail: "은 나노입자 기반 SERS 기판과 소형 라만 분광기를 결합한 휴대용 시스템입니다. PE, PP, PS 등 주요 미세플라스틱 소재를 현장에서 즉시 식별할 수 있습니다.",
-    figures: [
-      { title: "[도 1] 휴대용 센서 외관도", desc: "소형 라만 분광기 본체, 시료 주입부, LCD 디스플레이로 구성된 현장분석 장비.", icon: "🔍" },
-      { title: "[도 2] 라만 스펙트럼 비교", desc: "PE, PP, PS 미세플라스틱의 특성 라만 피크 비교. 각 소재의 고유 피크를 통한 식별.", icon: "📊" }
-    ]
-  },
-  {
-    id: 8, title: "차세대 mRNA 백신 지질나노입자 제형 기술", field: "바이오", type: "라이선스",
-    status: "협의중", trl: 4, org: "한국생명공학연구원", inventor: "김태준 박사",
-    patentNo: "10-2024-0045678", price: "1억원~",
-    filingDate: "2024.04.18", examStatus: "심사중", overseas: ["PCT", "US", "EP"],
-    summary: "이온화 지질 라이브러리 스크리닝을 통해 최적화된 LNP 제형으로 mRNA 전달 효율 기존 대비 5배 향상. 상온 안정성 확보.",
-    keywords: ["mRNA", "지질나노입자", "백신", "약물전달"], likes: 52,
-    detail: "500종 이상의 이온화 지질 라이브러리에서 고속 스크리닝으로 최적 조합을 도출했습니다. 4°C에서 6개월, 상온에서 1개월 안정성을 확보하여 콜드체인 부담을 대폭 줄였습니다.",
-    figures: [
-      { title: "[도 1] LNP 구조 모식도", desc: "이온화 지질, 보조 지질, 콜레스테롤, PEG-지질로 구성된 지질나노입자의 4성분 구조.", icon: "🧬" },
-      { title: "[도 2] 안정성 시험 결과", desc: "4°C 및 상온 보관 조건에서 6개월간 입자 크기 및 mRNA 활성 유지율.", icon: "📊" }
-    ]
-  },
-  {
-    id: 9, title: "디지털 트윈 기반 스마트 공장 예지정비 플랫폼", field: "AI/SW", type: "매각",
-    status: "등록", trl: 7, org: "한국전자통신연구원", inventor: "윤하나 박사",
-    patentNo: "10-2023-0087654", price: "1.2억원",
-    filingDate: "2023.09.14", examStatus: "등록완료", overseas: ["US", "CN", "JP"],
-    summary: "IoT 센서 데이터와 물리 시뮬레이션을 결합한 디지털 트윈으로 설비 고장을 72시간 전 예측. 비계획 정지 80% 감소 실증.",
-    keywords: ["디지털트윈", "예지정비", "스마트공장", "IoT"], likes: 45,
-    detail: "설비의 물리 모델과 데이터 기반 모델을 융합하여 실시간 상태 진단 및 잔여수명을 예측합니다. 반도체·자동차 제조라인에서 실증을 완료했습니다.",
-    figures: [
-      { title: "[도 1] 디지털 트윈 아키텍처", desc: "물리 설비 ↔ IoT 센서 ↔ 디지털 트윈 엔진 ↔ 예지정비 대시보드 연결 구조.", icon: "🏭" },
-      { title: "[도 2] 고장 예측 정확도", desc: "72시간 전 고장 예측 정확도 94.2%. 비계획 정지 80% 감소 실증 데이터.", icon: "📈" }
-    ]
-  }
-];
 
 const FIELDS = ["전체", "AI/SW", "바이오", "소재", "에너지", "전자", "환경"];
 const TYPES = ["전체", "라이선스", "매각", "라이선스/매각"];
@@ -141,7 +22,7 @@ const statusColors = {
   "완료": { bg: "#f0f5f1", text: "#2d5a3e" },
 };
 
-// ─── Styles (matching ipzenith.co.kr design) ─────────
+// ─── Styles (matching ipzenith.com design) ─────────
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Sora:wght@300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
 
@@ -391,10 +272,10 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
 .info-value { font-size:13px; font-weight:500; color:var(--text); margin-top:2px; }
 
 .figures-section { margin-bottom:16px; }
-.figures-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px; background:var(--border); border:1px solid var(--border); }
-.figure-card { background:var(--white); overflow:hidden; }
+.figures-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+.figure-card { background:var(--white); overflow:hidden; border:1px solid var(--border); }
 .figure-thumb {
-  height:auto; min-height:80px; background:var(--white); display:flex; align-items:center; justify-content:center;
+  height:auto; min-height:80px; background:var(--ivory); display:flex; align-items:center; justify-content:center;
   font-size:36px; border-bottom:1px solid var(--border); padding:8px;
 }
 .figure-thumb img { max-width:100%; max-height:240px; object-fit:contain; display:block; }
@@ -577,8 +458,9 @@ export default function App() {
   const [selectedPatent, setSelectedPatent] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // Supabase 특허 데이터 (로딩 전까지 샘플 데이터 표시)
-  const [patents, setPatents] = useState(SAMPLE_PATENTS);
+  // Supabase 특허 데이터
+  const [patents, setPatents] = useState([]);
+  const [patentsLoading, setPatentsLoading] = useState(true);
   // Supabase 로그인 세션 (플랫폼 등록 신청 시 필요)
   const [supabaseSession, setSupabaseSession] = useState(null);
   // 카테고리 확인 모달 상태 (저장 전에 카테고리 재확인용)
@@ -622,11 +504,12 @@ export default function App() {
         .eq("is_published", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      if (data && data.length > 0) {
-        setPatents(data.map(mapDbRowToUi));
-      }
+      setPatents((data || []).map(mapDbRowToUi));
     } catch (err) {
-      console.error("Supabase 특허 로딩 실패, 샘플 데이터 사용:", err);
+      console.error("Supabase 특허 로딩 실패:", err);
+      setPatents([]);
+    } finally {
+      setPatentsLoading(false);
     }
   };
 
@@ -669,7 +552,7 @@ export default function App() {
   const [lockoutUntil, setLockoutUntil] = useState(0);
   const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=final
   const [inquiryForm, setInquiryForm] = useState({ company: "", name: "", contact: "", dealType: "", message: "" });
-  const FIRM_EMAIL = "info@ipzenith.co.kr";
+  const FIRM_EMAIL = "info@ipzenith.com";
   const fileInputRef = useRef(null);
   const pdfjsRef = useRef(null);
 
@@ -1038,7 +921,7 @@ export default function App() {
         `${inquiryForm.message}`,
         ``,
         `---`,
-        `IP ZENITH 기술이전 플랫폼에서 발송됨`,
+        `Zenith Value (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
       ].join("\n");
     } else {
       body = [
@@ -1056,7 +939,7 @@ export default function App() {
         `해당 기술의 이전 상담을 요청합니다.`,
         ``,
         `---`,
-        `IP ZENITH 기술이전 플랫폼에서 발송됨`,
+        `Zenith Value (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
       ].join("\n");
     }
 
@@ -1410,8 +1293,8 @@ export default function App() {
         {/* Top Bar */}
         <div className="top-bar">
           <div>
-            <a href="https://ipzenith.co.kr" target="_blank" rel="noopener">ipzenith.co.kr</a>
-            <a href="mailto:info@ipzenith.co.kr">Contact</a>
+            <a href="https://ipzenith.com" target="_blank" rel="noopener">ipzenith.com</a>
+            <a href="mailto:info@ipzenith.com">Contact</a>
           </div>
           <span>IP Technology Transfer Platform</span>
         </div>
@@ -1420,8 +1303,8 @@ export default function App() {
         <header className="header">
           <div className="header-left">
             <div className="logo-area" onClick={() => setPage("browse")}>
-              <div className="logo-text"><span className="logo-z">Z</span>enith IP</div>
-              <div className="logo-sub">제니스특허법률사무소</div>
+              <div className="logo-text"><span className="logo-z">Z</span>enith Value</div>
+              <div className="logo-sub">주식회사 제니스밸류</div>
             </div>
             <nav className="nav">
               <button className={`nav-btn ${page === "browse" ? "active" : ""}`} onClick={() => setPage("browse")}>기술 찾기</button>
@@ -1443,17 +1326,17 @@ export default function App() {
         {page === "browse" && (
           <section className="hero">
             <div className="hero-content">
-              <div className="hero-firm">제니스특허법률사무소 · Technology Transfer</div>
+              <div className="hero-firm">주식회사 제니스밸류 · Technology Transfer</div>
               <h1>대학·연구소 <span>특허 기술</span>을<br/>기업과 연결합니다</h1>
               <p className="hero-desc">
-                제니스특허법률사무소가 운영하는 IP 기술이전 플랫폼입니다.
-                대학·연구소의 우수 특허를 기업에 소개하고, 기술 매입·라이선스 상담을 지원합니다.
+                주식회사 제니스밸류가 운영하는 IP 기술이전 플랫폼입니다.
+                대학·연구소의 우수 특허를 기업에 소개하고, 제니스특허법률사무소와 함께 기술 매입·라이선스 상담을 지원합니다.
               </p>
               <div className="stats-row">
-                <div className="stat-card"><div className="stat-num">127</div><div className="stat-label">등록 기술</div></div>
-                <div className="stat-card"><div className="stat-num">34</div><div className="stat-label">참여 기관</div></div>
-                <div className="stat-card"><div className="stat-num">18</div><div className="stat-label">이전 완료</div></div>
-                <div className="stat-card"><div className="stat-num">23</div><div className="stat-label">협의 진행</div></div>
+                <div className="stat-card"><div className="stat-num">{patents.length}</div><div className="stat-label">등록 기술</div></div>
+                <div className="stat-card"><div className="stat-num">{new Set(patents.map(p => p.org).filter(Boolean)).size}</div><div className="stat-label">참여 기관</div></div>
+                <div className="stat-card"><div className="stat-num">{patents.filter(p => p.status === "완료").length}</div><div className="stat-label">이전 완료</div></div>
+                <div className="stat-card"><div className="stat-num">{patents.filter(p => p.status === "협의중").length}</div><div className="stat-label">협의 진행</div></div>
               </div>
             </div>
           </section>
@@ -1501,12 +1384,16 @@ export default function App() {
                 ))}
               </div>
 
-              {filtered.length === 0 ? (
+              {patentsLoading ? (
+                <div className="empty-state">
+                  <p style={{ color: "var(--text-light)" }}>기술 목록을 불러오는 중입니다...</p>
+                </div>
+              ) : filtered.length === 0 ? (
                 <div className="empty-state">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-light)" strokeWidth="1.5">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
-                  <p>검색 결과가 없습니다. 필터를 변경해 보세요.</p>
+                  <p>{patents.length === 0 ? "아직 등록된 기술이 없습니다. 우측 상단 등록하기로 첫 번째 기술을 등록해주세요." : "검색 결과가 없습니다. 필터를 변경해 보세요."}</p>
                 </div>
               ) : (
                 <div className="patent-grid">
@@ -1529,15 +1416,19 @@ export default function App() {
                         <div className="card-meta-row">
                           <div className="meta-item">
                             <span className="meta-label">출원일</span>
-                            <span className="meta-value">{p.filingDate}</span>
+                            <span className="meta-value">{p.filingDate || "-"}</span>
                           </div>
-                          <div className="meta-divider" />
-                          <div className="meta-item">
-                            <span className={`exam-badge ${p.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
-                              <span className="dot" />
-                              {p.examStatus}
-                            </span>
-                          </div>
+                          {p.examStatus && (
+                            <>
+                              <div className="meta-divider" />
+                              <div className="meta-item">
+                                <span className={`exam-badge ${p.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
+                                  <span className="dot" />
+                                  {p.examStatus}
+                                </span>
+                              </div>
+                            </>
+                          )}
                           <div className="meta-divider" />
                           <div className="meta-item">
                             <span className="meta-label">해외</span>
@@ -1867,7 +1758,7 @@ export default function App() {
                   <div className="smk-card">
                     <div className="smk-header">
                       <h3>SMK 자동 생성 결과</h3>
-                      <span>제니스특허법률사무소{smkData.kiprisLinked ? " · KIPRIS 연동" : ""}</span>
+                      <span>주식회사 제니스밸류{smkData.kiprisLinked ? " · KIPRIS 연동" : ""}</span>
                     </div>
                     <div className="smk-tabs">
                       <button className={`smk-tab ${smkTab === "smk" ? "active" : ""}`} onClick={() => setSmkTab("smk")}>
@@ -2065,7 +1956,7 @@ export default function App() {
           {page === "process" && (
             <div className="process-page">
               <h2>기술이전 거래 절차</h2>
-              <p className="page-desc">제니스특허법률사무소가 전 과정을 지원합니다. 각 단계별 역할을 확인하세요.</p>
+              <p className="page-desc">주식회사 제니스밸류와 제니스특허법률사무소가 전 과정을 지원합니다. 각 단계별 역할을 확인하세요.</p>
 
               <div className="process-timeline">
                 <div className="process-line" />
@@ -2118,14 +2009,16 @@ export default function App() {
         <footer className="footer">
           <div className="footer-content">
             <div className="footer-left">
-              <div className="footer-name">Zenith IP</div>
+              <div className="footer-name">Zenith Value</div>
               <div className="footer-info">
-                제니스특허법률사무소 · IP 기술이전 플랫폼<br/>
-                <a href="https://ipzenith.co.kr" target="_blank" rel="noopener">ipzenith.co.kr</a>
+                주식회사 제니스밸류 · IP 기술이전 플랫폼<br/>
+                <a href="https://z-ipvalue.com" target="_blank" rel="noopener">z-ipvalue.com</a>
+                <span style={{ margin: "0 6px", color: "var(--text-lighter)" }}>·</span>
+                법률 지원: <a href="https://ipzenith.com" target="_blank" rel="noopener">제니스특허법률사무소 (ipzenith.com)</a>
               </div>
             </div>
             <div className="footer-right">
-              © 2026 Zenith Patent Law Firm
+              © 2026 Zenith Value Co., Ltd.
             </div>
           </div>
         </footer>
@@ -2247,9 +2140,13 @@ export default function App() {
                   <div className="info-item">
                     <div className="info-label">심사 현황</div>
                     <div className="info-value">
-                      <span className={`exam-badge ${selectedPatent.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
-                        <span className="dot" />{selectedPatent.examStatus}
-                      </span>
+                      {selectedPatent.examStatus ? (
+                        <span className={`exam-badge ${selectedPatent.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
+                          <span className="dot" />{selectedPatent.examStatus}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "var(--text-light)" }}>미확인</span>
+                      )}
                     </div>
                   </div>
                   <div className="info-item"><div className="info-label">발명자</div><div className="info-value">{selectedPatent.inventor}</div></div>
@@ -2326,7 +2223,7 @@ export default function App() {
                 {role === "buyer" && (
                   <div className="inquiry-form">
                     <h3>매입 의사 타진 · 기술이전 문의</h3>
-                    <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
+                    <p className="form-sub">작성 후 접수하면 주식회사 제니스밸류({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
                     <div className="form-row">
                       <div className="form-field">
                         <label>회사명</label>
@@ -2376,7 +2273,7 @@ export default function App() {
                       이 기술의 이전 상담을 받고 싶으시면 아래 버튼을 클릭하세요.
                     </p>
                     <p style={{ fontSize: 12, color: "var(--text-light)", marginBottom: 14 }}>
-                      제니스특허법률사무소({FIRM_EMAIL})로 상담 신청 이메일이 작성됩니다.
+                      주식회사 제니스밸류({FIRM_EMAIL})로 상담 신청 이메일이 작성됩니다.
                     </p>
                     <button className="form-submit" style={{ maxWidth: 320, margin: "0 auto" }}
                       onClick={() => sendInquiryEmail("holder")}>
