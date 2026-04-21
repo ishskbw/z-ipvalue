@@ -124,7 +124,7 @@ const SAMPLE_PATENTS = [
 
 const FIELDS = ["전체", "AI/SW", "바이오", "소재", "에너지", "전자", "환경"];
 const TYPES = ["전체", "라이선스", "매각"];
-const STATUSES = ["전체", "신규", "등록", "협의중"];
+const STATUSES = ["전체", "공개", "협의중", "완료"];
 
 const fieldColors = {
   "AI/SW": { bg: "#f0ede8", text: "#4338CA", border: "#e0dbd4" },
@@ -136,9 +136,9 @@ const fieldColors = {
 };
 
 const statusColors = {
-  "신규": { bg: "#faf0f2", text: "#6B1D2E" },
-  "등록": { bg: "#f0f5f1", text: "#2d5a3e" },
+  "공개": { bg: "transparent", text: "transparent" },  // 공개 상태는 배지 미표시 (깔끔)
   "협의중": { bg: "#fdf6ec", text: "#8a6d2b" },
+  "완료": { bg: "#f0f5f1", text: "#2d5a3e" },
 };
 
 // ─── Styles (matching ipzenith.co.kr design) ─────────
@@ -557,6 +557,8 @@ function TRLBar({ level }) {
 }
 
 function Badge({ text, colors }) {
+  // 플랫폼 상태 "공개"는 배지 없이 깔끔하게 (기본 상태)
+  if (!text || !colors || text === "공개") return null;
   return (
     <span className="badge" style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border || colors.bg}` }}>
       {text}
@@ -579,6 +581,8 @@ export default function App() {
   const [patents, setPatents] = useState(SAMPLE_PATENTS);
   // Supabase 로그인 세션 (플랫폼 등록 신청 시 필요)
   const [supabaseSession, setSupabaseSession] = useState(null);
+  // 카테고리 확인 모달 상태 (저장 전에 카테고리 재확인용)
+  const [categoryConfirm, setCategoryConfirm] = useState(null); // { suggested: 'AI/SW', selected: 'AI/SW', dealType: '라이선스' } or null
 
   // DB → UI 필드 매핑 (카드 렌더링용)
   const mapDbRowToUi = (p) => ({
@@ -892,27 +896,40 @@ export default function App() {
   };
 
   // ────────────────────────────────────────────
-  // 플랫폼 등록 신청 → Supabase에 저장
+  // 플랫폼 등록 신청 (1단계) → 카테고리·거래형태 확인 모달 열기
   // ────────────────────────────────────────────
-  const saveSmkToSupabase = async () => {
+  const openCategoryConfirm = () => {
     if (!supabaseSession) {
       showToast("❌ /admin 에서 먼저 로그인해주세요.");
       return;
     }
     if (!smkData) return;
 
-    // 카테고리 매핑 (Claude가 자유롭게 반환한 field → 허용된 enum 값)
-    const mapCategory = (raw) => {
+    // Claude가 반환한 field를 6개 카테고리 중 하나로 추정
+    const suggestCategory = (raw) => {
       if (!raw) return "AI/SW";
       const r = raw.toString();
-      if (r.match(/AI|SW|소프트웨어|알고리즘|인공지능/i)) return "AI/SW";
-      if (r.match(/바이오|의료|의약|제약|생명|약물/)) return "바이오";
-      if (r.match(/소재|재료|복합|고분자|나노/)) return "소재";
-      if (r.match(/에너지|전지|태양|배터리|연료/)) return "에너지";
-      if (r.match(/전자|반도체|센서|디스플레이/)) return "전자";
-      if (r.match(/환경|수질|대기|폐기물/)) return "환경";
+      if (r.match(/AI|SW|소프트웨어|알고리즘|인공지능|데이터|딥러닝|머신러닝/i)) return "AI/SW";
+      if (r.match(/바이오|의료|의약|제약|생명|약물|세포|단백|유전/)) return "바이오";
+      if (r.match(/소재|재료|복합|고분자|나노|합금|세라믹/)) return "소재";
+      if (r.match(/에너지|전지|태양|배터리|연료|발전|수소/)) return "에너지";
+      if (r.match(/전자|반도체|센서|디스플레이|회로|통신/)) return "전자";
+      if (r.match(/환경|수질|대기|폐기물|오염|친환경/)) return "환경";
       return "AI/SW";
     };
+
+    setCategoryConfirm({
+      suggested: smkData.field || "(미분류)",
+      selected: suggestCategory(smkData.field),
+      dealType: "라이선스",
+    });
+  };
+
+  // ────────────────────────────────────────────
+  // 플랫폼 등록 신청 (2단계) → 실제 Supabase 저장
+  // ────────────────────────────────────────────
+  const saveSmkToSupabase = async () => {
+    if (!categoryConfirm || !smkData || !supabaseSession) return;
 
     const mapExamStatus = (raw) => {
       if (!raw) return null;
@@ -941,9 +958,9 @@ export default function App() {
       title: smkData.title || "제목 없음",
       description: smkData.summary || null,
       detail: detail || null,
-      category: mapCategory(smkData.field),
-      deal_type: "라이선스", // 기본값, /admin에서 수정 가능
-      status: "신규",
+      category: categoryConfirm.selected, // 사용자가 확인한 값
+      deal_type: categoryConfirm.dealType,
+      status: "공개",
       trl_level: smkData.trl ? parseInt(smkData.trl) : null,
       application_date: convertDate(smkData.filingDate),
       application_no: smkData.patentNo || null,
@@ -960,14 +977,16 @@ export default function App() {
       price_display: null,
       contact_email: null,
       is_published: true,
-      // 도면: 이미지 URL(KIPRIS 외부 링크 또는 PDF 렌더 data URL)까지 포함 저장
-      figures: (smkData.figures || []).map((f) => ({
-        page: f.page || null,
-        title: f.title || "",
-        desc: f.desc || "",
-        imageUrl: f.imageUrl || null,
-        icon: "📊",
-      })),
+      // 도면: 이미지 있는 것만 저장 (빈 figure 제외)
+      figures: (smkData.figures || [])
+        .filter((f) => f && f.imageUrl)
+        .map((f) => ({
+          page: f.page || null,
+          title: f.title || "",
+          desc: f.desc || "",
+          imageUrl: f.imageUrl,
+          icon: "📊",
+        })),
     };
 
     const { error } = await supabase.from("patents").insert([patentData]);
@@ -979,7 +998,8 @@ export default function App() {
 
     showToast("✅ Supabase에 저장되었습니다. 기술 찾기에서 확인하세요.");
 
-    // 목록 갱신 및 초기 화면으로
+    // 모달 닫고 초기 화면으로
+    setCategoryConfirm(null);
     await loadPatentsFromSupabase();
     setSmkData(null);
     setUploadedFile(null);
@@ -1877,28 +1897,30 @@ export default function App() {
                         </div>
 
                         {/* 도면 */}
-                        {smkData.figures && smkData.figures.length > 0 && (
-                          <div className="smk-field">
-                            <label>도면</label>
-                            <div className="figures-grid" style={{ marginTop: 8 }}>
-                              {smkData.figures.map((fig, i) => (
-                                <div key={i} className="figure-card">
-                                  {fig.imageUrl && (
+                        {(() => {
+                          const figsWithImg = (smkData?.figures || []).filter(f => f && f.imageUrl);
+                          if (figsWithImg.length === 0) return null;
+                          return (
+                            <div className="smk-field">
+                              <label>도면</label>
+                              <div className="figures-grid" style={{ marginTop: 8 }}>
+                                {figsWithImg.map((fig, i) => (
+                                  <div key={i} className="figure-card">
                                     <div className="figure-thumb">
                                       <img src={fig.imageUrl} alt={fig.title} onError={(e) => { e.target.parentElement.style.display = "none"; }} />
                                     </div>
-                                  )}
-                                  <div className="figure-info">
-                                    <div className="figure-title">{fig.title}</div>
-                                    {fig.desc && <div className="figure-desc">{fig.desc}</div>}
+                                    <div className="figure-info">
+                                      <div className="figure-title">{fig.title}</div>
+                                      {fig.desc && <div className="figure-desc">{fig.desc}</div>}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
-                        <button className="smk-register-btn" onClick={saveSmkToSupabase}>
+                        <button className="smk-register-btn" onClick={openCategoryConfirm}>
                           플랫폼 등록 신청
                         </button>
                         <p style={{ textAlign: "center", fontSize: 11, color: "var(--text-light)", marginTop: 8 }}>
@@ -2102,6 +2124,97 @@ export default function App() {
           </div>
         </footer>
 
+        {/* 카테고리·거래형태 확인 모달 (플랫폼 등록 신청 시) */}
+        {categoryConfirm && (
+          <div className="modal-overlay" onClick={() => setCategoryConfirm(null)} style={{ zIndex: 200 }}>
+            <div
+              className="modal"
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: 480, padding: 0 }}
+            >
+              <div style={{ padding: "24px 28px 0" }}>
+                <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: "var(--dark)" }}>
+                  플랫폼 등록 확인
+                </h3>
+                <p style={{ fontSize: 13, color: "var(--text-mid)", margin: "8px 0 0", lineHeight: 1.6 }}>
+                  AI가 분석한 결과를 검토해주세요. 저장 전에 카테고리와 거래형태를 최종 확인할 수 있습니다.
+                </p>
+              </div>
+
+              <div style={{ padding: "20px 28px", borderTop: "1px solid var(--border)", marginTop: 20 }}>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-light)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                    AI 추정 분야
+                  </label>
+                  <div style={{ fontSize: 13, color: "var(--text-mid)", padding: "8px 12px", background: "var(--ivory)", borderRadius: 0 }}>
+                    {categoryConfirm.suggested}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-light)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                    플랫폼 카테고리 <span style={{ color: "var(--oxblood)" }}>*</span>
+                  </label>
+                  <select
+                    value={categoryConfirm.selected}
+                    onChange={(e) => setCategoryConfirm({ ...categoryConfirm, selected: e.target.value })}
+                    style={{
+                      width: "100%", padding: "10px 12px", fontSize: 14,
+                      border: "1px solid var(--border)", borderRadius: 0, background: "white",
+                      fontFamily: "inherit", outline: "none"
+                    }}
+                  >
+                    {["AI/SW", "바이오", "소재", "에너지", "전자", "환경"].map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-light)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                    거래형태 <span style={{ color: "var(--oxblood)" }}>*</span>
+                  </label>
+                  <select
+                    value={categoryConfirm.dealType}
+                    onChange={(e) => setCategoryConfirm({ ...categoryConfirm, dealType: e.target.value })}
+                    style={{
+                      width: "100%", padding: "10px 12px", fontSize: 14,
+                      border: "1px solid var(--border)", borderRadius: 0, background: "white",
+                      fontFamily: "inherit", outline: "none"
+                    }}
+                  >
+                    <option value="라이선스">라이선스</option>
+                    <option value="매각">매각</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ padding: "16px 28px 24px", display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid var(--border)" }}>
+                <button
+                  onClick={() => setCategoryConfirm(null)}
+                  style={{
+                    padding: "10px 20px", background: "white", color: "var(--text-mid)",
+                    border: "1px solid var(--border)", fontSize: 13, cursor: "pointer",
+                    fontFamily: "inherit"
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={saveSmkToSupabase}
+                  style={{
+                    padding: "10px 20px", background: "var(--oxblood)", color: "white",
+                    border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    fontFamily: "inherit", letterSpacing: 0.5
+                  }}
+                >
+                  이 설정으로 저장
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Detail Modal */}
         {selectedPatent && (
           <div className="modal-overlay" onClick={() => setSelectedPatent(null)}>
@@ -2170,29 +2283,31 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 도면 섹션 */}
-                {selectedPatent.figures && selectedPatent.figures.length > 0 && (
-                  <div className="figures-section">
-                    <h4 style={{ fontSize: 12, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-                      도면
-                    </h4>
-                    <div className="figures-grid">
-                      {selectedPatent.figures.map((fig, i) => (
-                        <div key={i} className="figure-card">
-                          {fig.imageUrl && (
+                {/* 도면 섹션 — 이미지가 있는 도면만 표시 */}
+                {(() => {
+                  const figuresWithImg = (selectedPatent.figures || []).filter(f => f && f.imageUrl);
+                  if (figuresWithImg.length === 0) return null;
+                  return (
+                    <div className="figures-section">
+                      <h4 style={{ fontSize: 12, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                        도면
+                      </h4>
+                      <div className="figures-grid">
+                        {figuresWithImg.map((fig, i) => (
+                          <div key={i} className="figure-card">
                             <div className="figure-thumb">
                               <img src={fig.imageUrl} alt={fig.title} onError={(e) => { e.target.parentElement.style.display = "none"; }} />
                             </div>
-                          )}
-                          <div className="figure-info">
-                            <div className="figure-title">{fig.title}</div>
-                            {fig.desc && <div className="figure-desc">{fig.desc}</div>}
+                            <div className="figure-info">
+                              <div className="figure-title">{fig.title}</div>
+                              {fig.desc && <div className="figure-desc">{fig.desc}</div>}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* 키워드 — 인라인 */}
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 14 }}>
