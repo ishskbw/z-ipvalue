@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
-const CATEGORIES = ['AI/SW', '바이오', '소재', '에너지', '전자', '환경'];
+const CATEGORIES = ['제약', '바이오', '진단', '화장료', '식품', '소재', '에너지', '환경', 'AI/SW', '전자'];
 const DEAL_TYPES = ['라이선스/매각', '라이선스', '매각'];
 const STATUSES = ['공개', '협의중', '완료'];
 const EXAM_STATUSES = ['심사중', '등록완료'];
