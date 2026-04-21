@@ -603,7 +603,7 @@ export default function App() {
   const pdfjsRef = useRef(null);
 
   // ─── Web Crypto API helpers ───────────────────────────
-  const crypto = window.crypto || window.msCrypto;
+  const getCrypto = () => typeof window !== "undefined" ? (window.crypto || window.msCrypto) : null;
   const te = new TextEncoder();
   const td = new TextDecoder();
   const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -611,6 +611,7 @@ export default function App() {
 
   // PBKDF2: derive key from password + salt
   const deriveKey = async (password, salt, usage) => {
+    const crypto = getCrypto();
     const baseKey = await crypto.subtle.importKey("raw", te.encode(password), "PBKDF2", false, ["deriveKey"]);
     return crypto.subtle.deriveKey(
       { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
@@ -623,6 +624,7 @@ export default function App() {
 
   // Hash password with PBKDF2 + random salt
   const hashPassword = async (password) => {
+    const crypto = getCrypto();
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const key = await deriveKey(password, salt, "hash");
     const sig = await crypto.subtle.sign("HMAC", key, te.encode(password));
@@ -631,6 +633,7 @@ export default function App() {
 
   // Verify password against stored hash
   const verifyPassword = async (password, storedSalt, storedHash) => {
+    const crypto = getCrypto();
     const salt = fromB64(storedSalt);
     const key = await deriveKey(password, salt, "hash");
     const sig = await crypto.subtle.sign("HMAC", key, te.encode(password));
@@ -639,6 +642,7 @@ export default function App() {
 
   // AES-GCM encrypt (key derived from password)
   const encryptData = async (plaintext, password) => {
+    const crypto = getCrypto();
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await deriveKey(password, salt, "encrypt");
@@ -649,6 +653,7 @@ export default function App() {
   // AES-GCM decrypt
   const decryptData = async (encJson, password) => {
     try {
+      const crypto = getCrypto();
       const { s, iv, ct } = JSON.parse(encJson);
       const key = await deriveKey(password, fromB64(s), "encrypt");
       const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(iv) }, key, fromB64(ct));
