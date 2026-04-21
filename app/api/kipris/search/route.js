@@ -1,6 +1,5 @@
 // /app/api/kipris/search/route.js
-// KIPRIS 통합 검색 → Claude SMK 생성 올인원 엔드포인트
-// 번호 입력 시: KIPRIS 서지 + 패밀리 조회 → Claude SMK 생성까지 서버에서 처리
+// KIPRIS Plus REST API — 정확한 엔드포인트 사용
 
 export async function POST(request) {
   const body = await request.json();
@@ -14,117 +13,112 @@ export async function POST(request) {
   const cleanNo = patentNo.replace(/[^0-9]/g, '');
   const result = { bib: null, family: [], smk: null, error: null };
 
+  const ext = (xml, tag) => {
+    const re = new RegExp(`<${tag}><!\\[CDATA\\[([\\s\\S]*?)\\]\\]></${tag}>|<${tag}>([\\s\\S]*?)</${tag}>`);
+    const m = xml.match(re);
+    return m ? (m[1] || m[2] || '').trim() : '';
+  };
+
+  const base = 'http://plus.kipris.or.kr/openapi/rest/patUtiModInfoSearchSevice';
+
   try {
-    // ── Step 1: KIPRIS 서지정보 조회 (getAdvancedSearch) ──
-    const paramName = searchType === 'application' ? 'applicationNumber'
-      : searchType === 'publication' ? 'openNumber' : 'registerNumber';
-    
-    // KIPRIS Plus REST API - 특허·실용 공개·등록공보 항목별 검색
-    const bibUrl = `http://plus.kipris.or.kr/openapi/rest/patUtiModInfoSearchSevice/getAdvancedSearch?accessKey=${encodeURIComponent(kiprisKey)}&${paramName}=${cleanNo}&numOfRows=1&pageNo=1`;
-    
-    console.log('KIPRIS bib URL:', bibUrl.replace(kiprisKey, '***'));
-    
-    const bibRes = await fetch(bibUrl);
-    const bibXml = await bibRes.text();
-    
-    console.log('KIPRIS bib response (first 500 chars):', bibXml.substring(0, 500));
-    
-    // Parse XML server-side
-    const extract = (xml, tag) => {
-      const match = xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
-      return match ? match[1].trim() : null;
-    };
-    const extractAll = (xml, tag) => {
-      const matches = [...xml.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))];
-      return matches.map(m => m[1].trim());
-    };
+    // ── Step 1: 항목별검색 (출원/공개/등록 번호) ──
+    let url;
+    if (searchType === 'application') {
+      url = `${base}/applicationNumberSearchInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${cleanNo}&patent=true&utility=true&docsCount=1&docsStart=1`;
+    } else if (searchType === 'publication') {
+      url = `${base}/openNumberSearchInfo?accessKey=${encodeURIComponent(kiprisKey)}&openNumber=${cleanNo}&patent=true&utility=true&docsCount=1&docsStart=1`;
+    } else {
+      url = `${base}/registrationNumberSearchInfo?accessKey=${encodeURIComponent(kiprisKey)}&registrationNumber=${cleanNo}&patent=true&utility=true&docsCount=1&docsStart=1`;
+    }
 
+    const r1 = await fetch(url);
+    const xml1 = await r1.text();
+
+    const total = ext(xml1, 'TotalSearchCount');
+    if (!total || total === '0') {
+      result.bib = { title: '검색 결과 없음', applicationNumber: cleanNo, rawXml: xml1.substring(0, 2000) };
+      return Response.json(result);
+    }
+
+    const appNum = ext(xml1, 'ApplicationNumber') || cleanNo;
     result.bib = {
-      title: extract(bibXml, 'inventionTitle') || extract(bibXml, 'title') || extract(bibXml, 'inventionTitleKorean') || '',
-      applicationNumber: extract(bibXml, 'applicationNumber') || cleanNo,
-      applicationDate: extract(bibXml, 'applicationDate') || extract(bibXml, 'applDate') || '',
-      inventorName: extract(bibXml, 'inventorName') || extractAll(bibXml, 'inventorName').join(', ') || extract(bibXml, 'inventor') || '',
-      applicantName: extract(bibXml, 'applicantName') || extractAll(bibXml, 'applicantName').join(', ') || extract(bibXml, 'applicant') || '',
-      abstract: extract(bibXml, 'astrtCont') || extract(bibXml, 'abstract') || extract(bibXml, 'abstractSummary') || '',
-      ipcNumber: extract(bibXml, 'ipcNumber') || extract(bibXml, 'ipcCode') || '',
-      registerStatus: extract(bibXml, 'registerStatus') || extract(bibXml, 'registrationStatus') || extract(bibXml, 'detailedRegistrationStatus') || extract(bibXml, 'registerStatusCode') || '',
-      registerNumber: extract(bibXml, 'registerNumber') || extract(bibXml, 'registrationNumber') || '',
-      registerDate: extract(bibXml, 'registerDate') || extract(bibXml, 'registrationDate') || '',
-      openNumber: extract(bibXml, 'openNumber') || extract(bibXml, 'publicationNumber') || extract(bibXml, 'openNum') || '',
-      openDate: extract(bibXml, 'openDate') || extract(bibXml, 'publicationDate') || '',
-      bigDrawing: extract(bibXml, 'bigDrawing') || extract(bibXml, 'drawing') || extract(bibXml, 'largeDrawing') || extract(bibXml, 'drawingPath') || '',
-      rawXml: bibXml.substring(0, 5000),
+      title: ext(xml1, 'InventionName'),
+      applicationNumber: appNum,
+      applicationDate: ext(xml1, 'ApplicationDate'),
+      applicantName: ext(xml1, 'Applicant'),
+      inventorName: '',
+      abstract: ext(xml1, 'Abstract'),
+      ipcNumber: ext(xml1, 'InternationalpatentclassificationNumber'),
+      registerStatus: ext(xml1, 'RegistrationStatus'),
+      registerNumber: ext(xml1, 'RegistrationNumber'),
+      registerDate: ext(xml1, 'RegistrationDate'),
+      openNumber: ext(xml1, 'OpeningNumber'),
+      openDate: ext(xml1, 'OpeningDate'),
+      bigDrawing: ext(xml1, 'DrawingPath') || ext(xml1, 'ThumbnailPath'),
+      rawXml: xml1.substring(0, 3000),
     };
 
-    // ── Step 2: KIPRIS 패밀리 조회 ──
-    const appNo = result.bib.applicationNumber || cleanNo;
+    // ── Step 2: 초록 상세 ──
+    if (!result.bib.abstract) {
+      try {
+        const r = await fetch(`${base}/patentAbstractInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
+        const x = await r.text();
+        const a = ext(x, 'astrtCont');
+        if (a) result.bib.abstract = a;
+      } catch(e) {}
+    }
+
+    // ── Step 3: 대표도면 ──
+    if (!result.bib.bigDrawing) {
+      try {
+        const r = await fetch(`${base}/getReprsntFloorPlanInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
+        const x = await r.text();
+        result.bib.bigDrawing = ext(x, 'largePath') || ext(x, 'path');
+      } catch(e) {}
+    }
+
+    // ── Step 4: 패밀리 ──
     try {
-      const famUrl = `http://plus.kipris.or.kr/openapi/rest/patFamilyInfoSearchService/getFamilyInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNo}`;
-      const famRes = await fetch(famUrl);
-      const famXml = await famRes.text();
-      
-      // Extract family countries
-      const countryMatches = [...famXml.matchAll(/<familyCountryCode>([^<]*)<\/familyCountryCode>/g)];
-      const countryNames = [...famXml.matchAll(/<familyCountryName>([^<]*)<\/familyCountryName>/g)];
-      const familyAppNos = [...famXml.matchAll(/<familyApplicationNumber>([^<]*)<\/familyApplicationNumber>/g)];
-      
+      const r = await fetch(`${base}/patentFamilyInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
+      const x = await r.text();
+      const codes = [...x.matchAll(/<countryCode>([\s\S]*?)<\/countryCode>/g)];
+      const names = [...x.matchAll(/<countryName>([\s\S]*?)<\/countryName>/g)];
+      const nums = [...x.matchAll(/<familyNumber>([\s\S]*?)<\/familyNumber>/g)];
       const seen = new Set();
-      for (let i = 0; i < countryMatches.length; i++) {
-        const code = countryMatches[i][1].trim();
-        if (code && code !== 'KR' && !seen.has(code)) {
-          seen.add(code);
-          result.family.push({
-            countryCode: code,
-            countryName: countryNames[i] ? countryNames[i][1].trim() : '',
-            applicationNo: familyAppNos[i] ? familyAppNos[i][1].trim() : '',
-          });
+      for (let i = 0; i < codes.length; i++) {
+        const c = codes[i][1].trim();
+        if (c && c !== 'KR' && !seen.has(c)) {
+          seen.add(c);
+          result.family.push({ countryCode: c, countryName: names[i]?.[1]?.trim() || '', applicationNo: nums[i]?.[1]?.trim() || '' });
         }
       }
-    } catch (e) {
-      console.warn('Family search error:', e);
-    }
+    } catch(e) {}
 
-    // ── Step 3: Claude SMK 생성 ──
-    if (anthropicKey && result.bib.title) {
+    // ── Step 5: Claude SMK ──
+    if (anthropicKey && result.bib.title && result.bib.title !== '검색 결과 없음') {
       try {
-        const prompt = `다음 특허 정보를 바탕으로 SMK(기술이전 마케팅 시트)를 작성해주세요.
+        const prompt = `다음 특허 정보를 바탕으로 SMK를 작성하세요. JSON만 응답하세요.
+[특허] ${result.bib.title}
+[출원번호] ${result.bib.applicationNumber}
+[출원일] ${result.bib.applicationDate}
+[출원인] ${result.bib.applicantName}
+[IPC] ${result.bib.ipcNumber}
+[초록] ${result.bib.abstract}
+{"field":"기술분야","trl":숫자,"summary":"개요","core":"핵심기술","advantage":"장점","application":"활용분야","effect":"효과","keywords":["kw1","kw2","kw3","kw4","kw5"]}`;
 
-[특허 정보]
-- 발명의 명칭: ${result.bib.title}
-- 출원번호: ${result.bib.applicationNumber}
-- 출원일: ${result.bib.applicationDate}
-- 발명자: ${result.bib.inventorName}
-- 출원인: ${result.bib.applicantName}
-- IPC: ${result.bib.ipcNumber}
-- 초록: ${result.bib.abstract}
-
-반드시 아래 JSON 형식으로만 응답하세요.
-{"field":"기술 분야","trl":숫자(1-9),"summary":"기술 개요 (2-3문장)","core":"핵심 기술 내용 (3-4문장)","advantage":"특징 및 장점","application":"활용 분야","effect":"기대 효과","keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"]}`;
-
-        const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        const cr = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': anthropicKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            messages: [{ role: 'user', content: prompt }],
-          }),
+          headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
         });
-        const claudeData = await claudeRes.json();
-        const text = claudeData.content?.map(i => i.text || '').join('\n') || '';
-        const clean = text.replace(/```json|```/g, '').trim();
-        result.smk = JSON.parse(clean);
-      } catch (e) {
-        console.error('Claude SMK error:', e);
-        result.smk = null;
-      }
+        const cd = await cr.json();
+        const t = (cd.content?.map(i => i.text || '').join('\n') || '').replace(/```json|```/g, '').trim();
+        result.smk = JSON.parse(t);
+      } catch(e) { console.error('Claude error:', e); }
     }
 
-    return Response.json(result, { status: 200 });
+    return Response.json(result);
   } catch (error) {
     console.error('Search error:', error);
     return Response.json({ error: 'Search failed', detail: error.message }, { status: 502 });
