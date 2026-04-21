@@ -568,7 +568,7 @@ export default function App() {
   const [lockoutUntil, setLockoutUntil] = useState(0);
   const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=final
   const [inquiryForm, setInquiryForm] = useState({ company: "", name: "", contact: "", dealType: "", message: "" });
-  const FIRM_EMAIL = "info@ipzenith.com";
+  const FIRM_EMAIL = "zenith@ipzenith.com";
   const fileInputRef = useRef(null);
   const pdfjsRef = useRef(null);
 
