@@ -661,16 +661,22 @@ export default function App() {
     } catch { return null; }
   };
 
+  // localStorage wrapper (replaces window.storage for deployed environment)
+  const store = {
+    get: (key) => { const v = localStorage.getItem(key); return v ? { value: v } : null; },
+    set: (key, value) => { localStorage.setItem(key, value); return { key, value }; },
+    delete: (key) => { localStorage.removeItem(key); return { key, deleted: true }; },
+  };
+
   // Check if admin password exists on mount
   useEffect(() => {
     (async () => {
       try {
-        const p = await window.storage.get("admin-pw");
+        const p = store.get("admin-pw");
         if (p?.value) setAdminHasPassword(true);
       } catch(e) {}
-      // Check if encrypted API key exists (show saved indicator even without auth)
       try {
-        const k = await window.storage.get("kipris-enc");
+        const k = store.get("kipris-enc");
         if (k?.value) setKiprisKeySaved(true);
       } catch(e) {}
     })();
@@ -691,11 +697,11 @@ export default function App() {
       if (adminPwInput !== adminPwConfirm) { setAdminPwError("비밀번호가 일치하지 않습니다."); return; }
       try {
         const { salt, hash } = await hashPassword(adminPwInput);
-        await window.storage.set("admin-pw", JSON.stringify({ salt, hash }));
+        store.set("admin-pw", JSON.stringify({ salt, hash }));
         // If there's an existing API key in memory, encrypt it with new password
         if (kiprisKey) {
           const encKey = await encryptData(kiprisKey, adminPwInput);
-          await window.storage.set("kipris-enc", encKey);
+          store.set("kipris-enc", encKey);
           setKiprisKeySaved(true);
         }
       } catch(e) { setAdminPwError("설정 오류"); return; }
@@ -704,7 +710,7 @@ export default function App() {
       showToast("✓ 관리자 비밀번호가 설정되었습니다.");
     } else {
       try {
-        const stored = await window.storage.get("admin-pw");
+        const stored = store.get("admin-pw");
         if (!stored?.value) { setAdminPwError("저장된 비밀번호가 없습니다."); return; }
         const { salt, hash } = JSON.parse(stored.value);
         const valid = await verifyPassword(adminPwInput, salt, hash);
@@ -712,7 +718,7 @@ export default function App() {
           setAdminAuth(true); setLoginAttempts(0);
           // Decrypt API key if exists
           try {
-            const encKey = await window.storage.get("kipris-enc");
+            const encKey = store.get("kipris-enc");
             if (encKey?.value) {
               const decrypted = await decryptData(encKey.value, adminPwInput);
               if (decrypted) { setKiprisKey(decrypted); setKiprisKeySaved(true); }
@@ -744,28 +750,28 @@ export default function App() {
     if (!savePwInput.trim()) { setSavePwPrompt(true); return; }
     try {
       // Verify password first
-      const stored = await window.storage.get("admin-pw");
+      const stored = store.get("admin-pw");
       if (stored?.value) {
         const { salt, hash } = JSON.parse(stored.value);
         const valid = await verifyPassword(savePwInput, salt, hash);
         if (!valid) { showToast("비밀번호가 틀렸습니다."); setSavePwInput(""); return; }
       }
       const encKey = await encryptData(key, savePwInput);
-      await window.storage.set("kipris-enc", encKey);
+      store.set("kipris-enc", encKey);
       setKiprisKeySaved(true); setSavePwPrompt(false); setSavePwInput("");
       showToast("✓ API 키가 AES-256으로 암호화 저장되었습니다.");
     } catch(e) { showToast("키 저장 실패"); }
   };
 
   const deleteKiprisKey = async () => {
-    try { await window.storage.delete("kipris-enc"); } catch(e) {}
+    try { store.delete("kipris-enc"); } catch(e) {}
     setKiprisKey(""); setKiprisKeySaved(false); setShowKeyInput(false); showToast("API 키가 삭제되었습니다.");
   };
 
   // Master reset — deletes all admin data
   const masterReset = async () => {
-    try { await window.storage.delete("admin-pw"); } catch(e) {}
-    try { await window.storage.delete("kipris-enc"); } catch(e) {}
+    try { store.delete("admin-pw"); } catch(e) {}
+    try { store.delete("kipris-enc"); } catch(e) {}
     setAdminAuth(false); setAdminHasPassword(false); setKiprisKey("");
     setKiprisKeySaved(false); setAdminModal(false); setResetStep(0);
     setAdminPwInput(""); setAdminPwError(""); setLoginAttempts(0); setLockoutUntil(0);
