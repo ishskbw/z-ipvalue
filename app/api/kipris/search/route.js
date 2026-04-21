@@ -113,41 +113,56 @@ export async function POST(request) {
       if (paths.length > 0) {
         result.pdfUrls.main = paths[0];
         
-        // XML 전문 다운로드하여 도면 설명 추출
+        // XML 전문 다운로드 — EUC-KR 인코딩 처리
         try {
           const xmlRes = await fetch(paths[0]);
-          const fullXml = await xmlRes.text();
+          const xmlBuf = await xmlRes.arrayBuffer();
           
-          // "도면의 간단한 설명" 섹션 추출 시도
-          const figSectionMatch = fullXml.match(/도면의\s*간단한\s*설명[\s\S]*?(?=<\/|발명을\s*실시하기)/i);
+          // EUC-KR로 먼저 시도, 실패하면 UTF-8
+          let fullXml;
+          try {
+            const eucKrDecoder = new TextDecoder('euc-kr');
+            fullXml = eucKrDecoder.decode(xmlBuf);
+          } catch(e) {
+            fullXml = new TextDecoder('utf-8').decode(xmlBuf);
+          }
+          
+          // UTF-8 BOM이나 인코딩 선언이 있으면 UTF-8로 재시도
+          if (fullXml.includes('encoding="UTF-8"') && fullXml.includes('\ufffd')) {
+            fullXml = new TextDecoder('utf-8').decode(xmlBuf);
+          }
+
+          // XML 태그 제거한 순수 텍스트
+          const plainText = fullXml
+            .replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
+            .replace(/<[^>]+>/g, '\n')
+            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+            .replace(/\n{3,}/g, '\n\n').trim();
+          
+          // "도면의 간단한 설명" 섹션 추출
+          const figSectionMatch = plainText.match(/도면의\s*간단한\s*설명([\s\S]*?)(?=발명을\s*실시하기|실시예|청구의\s*범위|\[.*?분야\]|$)/i);
           if (figSectionMatch) {
-            const figSection = figSectionMatch[0];
-            // [도 1], [도1], 도 1:, 【도 1】 등 다양한 패턴 매칭
-            const figMatches = [...figSection.matchAll(/(?:\[도\s*(\d+[a-z]?)\]|【도\s*(\d+[a-z]?)】|도\s*(\d+[a-z]?)\s*[:\-은는이가을를])\s*([^\[【\n]+)/g)];
-            for (const fm of figMatches) {
-              const no = fm[1] || fm[2] || fm[3];
-              const desc = (fm[4] || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-              if (no && desc) {
-                result.figureDescsFromXml.push({ no: `도 ${no}`, desc });
-              }
-            }
-          }
-
-          // 전문 텍스트에서 도면 설명이 못 추출되면 CDATA 패턴 시도
-          if (result.figureDescsFromXml.length === 0) {
-            const figMatches2 = [...fullXml.matchAll(/(?:도\s*(\d+[a-z]?))\s*[:\-은는이가을를]\s*([^<\n]{5,80})/g)];
+            const figSection = figSectionMatch[1];
+            // 다양한 도면 번호 패턴
+            const figMatches = [...figSection.matchAll(/(?:\[?\s*도\s*(\d+[a-z]?)\s*\]?)\s*[:：\-\s은는이가을를에서]\s*([^\[\n도]{3,100})/g)];
             const seen = new Set();
-            for (const fm of figMatches2) {
-              if (!seen.has(fm[1])) {
-                seen.add(fm[1]);
-                const desc = fm[2].replace(/\s+/g, ' ').trim();
-                result.figureDescsFromXml.push({ no: `도 ${fm[1]}`, desc });
+            for (const fm of figMatches) {
+              const no = fm[1].trim();
+              if (!seen.has(no)) {
+                seen.add(no);
+                const desc = fm[2].replace(/\s+/g, ' ').trim().replace(/[.。]$/, '');
+                if (desc.length > 2) {
+                  result.figureDescsFromXml.push({ no: `도 ${no}`, desc });
+                }
               }
             }
           }
 
-          // 전문 텍스트 요약 (처음 5000자) — 프론트에서 뷰어로 사용
-          result.fullTextXml = fullXml.substring(0, 30000);
+          // 전문 텍스트 저장 (프론트 뷰어용)
+          result.fullTextXml = plainText.substring(0, 50000);
+          result.debug.xmlEncoding = fullXml.substring(0, 200);
+          result.debug.figureCount = result.figureDescsFromXml.length;
         } catch(e) { result.debug.xmlDownloadErr = String(e); }
       }
     } catch(e) { result.debug.pdfErr = String(e); }
