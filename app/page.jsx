@@ -467,7 +467,6 @@ function Badge({ text, colors }) {
 // ─── Main App ─────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("browse");
-  const [role, setRole] = useState("holder");
   const [search, setSearch] = useState("");
   const [fieldFilter, setFieldFilter] = useState("전체");
   const [typeFilter, setTypeFilter] = useState("전체");
@@ -1361,7 +1360,7 @@ export default function App() {
           <section className="hero">
             <div className="hero-content">
               <div className="hero-firm">제니스특허법률사무소 · Technology Transfer</div>
-              <h1>제니스가 선별한 <span>Value</span>,<br/>그 가치를 보장합니다.</h1>
+              <h1>제니스가 선별한 <span>Valued IP</span>,<br/>그 가치를 보장합니다.</h1>
               <p className="hero-desc">
                 창업사업 및 코스닥 기술특례상장 심의위원이 직접 선별·검증한 사업화 유망 특허만을 소개합니다.
                 기술 매입·라이선스 상담 전 과정을 지원합니다.
@@ -1380,15 +1379,6 @@ export default function App() {
           {/* ─── BROWSE PAGE ─── */}
           {page === "browse" && (
             <>
-              <div className="role-tabs">
-                <button className={`role-tab ${role === "holder" ? "active" : ""}`} onClick={() => setRole("holder")}>
-                  🏛 기술 보유자
-                </button>
-                <button className={`role-tab ${role === "buyer" ? "active" : ""}`} onClick={() => setRole("buyer")}>
-                  🏢 수요 기업
-                </button>
-              </div>
-
               <div className="filters-bar">
                 <div className="search-box">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1483,11 +1473,9 @@ export default function App() {
                         <span className="card-org">{p.org}</span>
                         <span className="card-price">{p.price}</span>
                       </div>
-                      {role === "buyer" && (
-                        <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedPatent(p); }}>
-                          매입 의사 타진 →
-                        </button>
-                      )}
+                      <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedPatent(p); }}>
+                        매입 의사 타진 →
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -2254,11 +2242,11 @@ export default function App() {
                   ))}
                 </div>
 
-                {role === "buyer" && (
-                  <div className="inquiry-form">
-                    <h3>매입 의사 타진 · 기술이전 문의</h3>
-                    <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
-                    <div className="form-row">
+                {/* 문의 폼 - 모든 방문자에게 표시 */}
+                <div className="inquiry-form">
+                  <h3>매입 의사 타진 · 기술이전 문의</h3>
+                  <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
+                  <div className="form-row">
                       <div className="form-field">
                         <label>회사명</label>
                         <input placeholder="회사명을 입력하세요" value={inquiryForm.company} onChange={(e) => updateInquiry("company", e.target.value)} />
@@ -2299,22 +2287,6 @@ export default function App() {
                       📧 이메일로 문의 접수
                     </button>
                   </div>
-                )}
-
-                {role === "holder" && (
-                  <div style={{ background: "var(--ivory)", borderRadius: 0, padding: 20, marginTop: 20, textAlign: "center" }}>
-                    <p style={{ fontSize: 14, color: "var(--text-mid)", marginBottom: 4 }}>
-                      이 기술의 이전 상담을 받고 싶으시면 아래 버튼을 클릭하세요.
-                    </p>
-                    <p style={{ fontSize: 12, color: "var(--text-light)", marginBottom: 14 }}>
-                      제니스특허법률사무소({FIRM_EMAIL})로 상담 신청 이메일이 작성됩니다.
-                    </p>
-                    <button className="form-submit" style={{ maxWidth: 320, margin: "0 auto" }}
-                      onClick={() => sendInquiryEmail("holder")}>
-                      📧 기술이전 상담 신청
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
