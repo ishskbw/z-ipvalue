@@ -1,11 +1,129 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "../lib/supabase";
 
+const SAMPLE_PATENTS = [
+  {
+    id: 1, title: "그래핀 기반 고효율 방열 복합소재", field: "소재", type: "라이선스",
+    status: "협의중", trl: 6, org: "한국과학기술원", inventor: "김정호 교수",
+    patentNo: "10-2024-0012345", price: "협의 후 결정",
+    filingDate: "2024.01.15", examStatus: "심사중", overseas: ["PCT", "US", "JP"],
+    summary: "그래핀 나노플레이트릿을 활용한 고열전도성 복합소재로, 기존 방열 소재 대비 열전도율 300% 향상. 전자기기 및 전기차 배터리 방열 솔루션에 적용 가능.",
+    keywords: ["그래핀", "방열", "복합소재", "열전도"], likes: 24,
+    detail: "본 발명은 그래핀 나노플레이트릿의 배향 제어 기술을 통해 면방향 열전도율을 극대화한 방열 복합소재에 관한 것입니다. 기존 알루미나, 질화붕소 기반 방열소재 대비 3배 이상의 열전도 성능을 구현하며, 대면적 양산이 가능한 공정 기술을 포함합니다.",
+    figures: [
+      { title: "[도 1] 그래핀 복합소재 단면 구조도", desc: "그래핀 나노플레이트릿이 면방향으로 배향된 복합소재의 단면 구조. 상부 방열층과 하부 기판 사이 열전도 경로를 형성한다.", icon: "🔬" },
+      { title: "[도 2] 열전도율 비교 그래프", desc: "기존 알루미나·질화붕소 소재 대비 본 발명 소재의 열전도율을 비교한 그래프. 면방향 300% 향상 확인.", icon: "📊" }
+    ]
+  },
+  {
+    id: 2, title: "AI 기반 실시간 작물 병해 진단 시스템", field: "AI/SW", type: "매각",
+    status: "등록", trl: 7, org: "서울대학교", inventor: "이수민 교수",
+    patentNo: "10-2023-0098765", price: "5,000만원",
+    filingDate: "2023.06.20", examStatus: "등록완료", overseas: ["US", "CN"],
+    summary: "딥러닝 영상 분석으로 작물 잎사귀 촬영만으로 12종 병해를 95% 이상 정확도로 실시간 진단하는 모바일 시스템.",
+    keywords: ["딥러닝", "작물병해", "영상진단", "스마트팜"], likes: 41,
+    detail: "CNN 기반 다중 분류 모델과 경량화 기술을 결합하여 모바일 환경에서 실시간 추론이 가능합니다. 토마토, 고추, 딸기 등 주요 작물 12종 병해에 대해 95.3%의 진단 정확도를 달성했습니다.",
+    figures: [
+      { title: "[도 1] 시스템 구성도", desc: "모바일 카메라 → 영상 전처리 → CNN 추론 엔진 → 병해 진단 결과 출력의 전체 파이프라인.", icon: "📱" },
+      { title: "[도 2] 병해 분류 정확도", desc: "12종 작물 병해에 대한 분류 정확도. 평균 95.3%, 최고 98.1%(토마토 역병) 달성.", icon: "📊" }
+    ]
+  },
+  {
+    id: 3, title: "생분해성 고분자 기반 약물전달 마이크로니들", field: "바이오", type: "라이선스",
+    status: "등록", trl: 5, org: "포항공과대학교", inventor: "박지영 교수",
+    patentNo: "10-2024-0034567", price: "3,000만원~",
+    filingDate: "2024.03.08", examStatus: "심사중", overseas: ["PCT"],
+    summary: "PLA/PLGA 블렌딩 기반 생분해성 마이크로니들로 피부 투과형 약물 전달. 인슐린, 백신 등 거대분자 약물의 무통 투여 가능.",
+    keywords: ["마이크로니들", "약물전달", "생분해성", "경피투과"], likes: 33,
+    detail: "생분해성 고분자의 분해 속도를 제어하여 약물 방출 프로파일을 설계할 수 있는 플랫폼 기술입니다. 동물실험에서 기존 주사 대비 동등한 약물 흡수율을 확인했습니다.",
+    figures: [
+      { title: "[도 1] 마이크로니들 어레이 SEM 이미지", desc: "PLA/PLGA 블렌딩 기반 마이크로니들의 전자현미경 이미지. 높이 600μm, 팁 직경 10μm.", icon: "🔬" },
+      { title: "[도 2] 약물 방출 프로파일", desc: "시간 경과에 따른 인슐린 방출 곡선. 24시간에 걸쳐 지속적 방출 달성.", icon: "📈" }
+    ]
+  },
+  {
+    id: 4, title: "페로브스카이트 태양전지 대면적 코팅 공정", field: "에너지", type: "매각",
+    status: "신규", trl: 4, org: "KIST", inventor: "정민수 박사",
+    patentNo: "10-2024-0056789", price: "협의 후 결정",
+    filingDate: "2024.05.12", examStatus: "심사중", overseas: [],
+    summary: "슬롯다이 코팅 기반 페로브스카이트 태양전지 대면적(30×30cm) 제조 공정. 소면적 대비 효율 저하 5% 이내 달성.",
+    keywords: ["페로브스카이트", "태양전지", "대면적", "코팅공정"], likes: 18,
+    detail: "슬롯다이 코팅의 유체역학적 조건을 최적화하여 대면적에서도 균일한 박막 형성이 가능합니다. 30×30cm 기판에서 PCE 21.3%를 달성했습니다.",
+    figures: [
+      { title: "[도 1] 슬롯다이 코팅 장치 개략도", desc: "슬롯다이 헤드, 기판 이송부, 건조 챔버로 구성된 대면적 코팅 장치의 구조.", icon: "⚙️" },
+      { title: "[도 2] 대면적 효율 분포", desc: "30×30cm 기판 위 64개 셀의 효율 분포. 균일도 ±0.8% 이내.", icon: "📊" }
+    ]
+  },
+  {
+    id: 5, title: "자율주행 LiDAR 포인트클라우드 압축 알고리즘", field: "AI/SW", type: "라이선스",
+    status: "협의중", trl: 6, org: "KAIST", inventor: "최동현 교수",
+    patentNo: "10-2023-0076543", price: "8,000만원",
+    filingDate: "2023.08.30", examStatus: "등록완료", overseas: ["US", "EP", "JP", "CN"],
+    summary: "3D LiDAR 포인트클라우드 데이터를 실시간 압축하여 V2X 통신 대역폭을 90% 절감하면서 객체 인식 정확도 유지.",
+    keywords: ["LiDAR", "포인트클라우드", "자율주행", "데이터압축"], likes: 37,
+    detail: "옥트리 기반 공간 분할과 딥러닝 엔트로피 코딩을 결합한 하이브리드 압축 기법으로, 실시간 처리(30fps)와 높은 압축률을 동시에 달성합니다.",
+    figures: [
+      { title: "[도 1] 압축 알고리즘 흐름도", desc: "포인트클라우드 입력 → 옥트리 분할 → 딥러닝 엔트로피 코딩 → 비트스트림 출력 과정.", icon: "🔄" },
+      { title: "[도 2] 압축률 대비 인식 정확도", desc: "압축률 90%에서도 객체 인식 mAP 0.92 유지. 기존 방식 대비 15% 향상.", icon: "📊" }
+    ]
+  },
+  {
+    id: 6, title: "산화아연 나노와이어 기반 유연 압전 센서", field: "전자", type: "매각",
+    status: "등록", trl: 5, org: "성균관대학교", inventor: "한소영 교수",
+    patentNo: "10-2024-0023456", price: "4,500만원",
+    filingDate: "2024.02.28", examStatus: "등록완료", overseas: ["PCT", "US"],
+    summary: "ZnO 나노와이어 어레이를 유연 기판 위에 직접 성장시켜 제작한 고감도 압전 센서. 웨어러블 헬스케어 및 로봇 촉각센서 적용.",
+    keywords: ["압전센서", "나노와이어", "유연전자", "웨어러블"], likes: 29,
+    detail: "수열합성법으로 유연 PI 기판 위에 수직 배향된 ZnO 나노와이어를 직접 성장시키는 저온 공정 기술입니다. 0.1kPa 미만의 압력 감지가 가능합니다.",
+    figures: [
+      { title: "[도 1] 유연 센서 구조 단면도", desc: "PI 기판 / ZnO 나노와이어 어레이 / 상부 전극의 3층 샌드위치 구조.", icon: "🔬" },
+      { title: "[도 2] 압력 감도 특성 곡선", desc: "0.01~100kPa 범위 압력에 대한 센서 출력 전압. 0.1kPa 미만 분해능 확인.", icon: "📈" }
+    ]
+  },
+  {
+    id: 7, title: "미세플라스틱 실시간 검출용 라만 분광 센서", field: "환경", type: "라이선스",
+    status: "신규", trl: 3, org: "한국환경연구원", inventor: "오진석 박사",
+    patentNo: "10-2024-0067890", price: "협의 후 결정",
+    filingDate: "2024.07.01", examStatus: "심사중", overseas: [],
+    summary: "SERS 기반 휴대용 라만 분광 센서로 수질 내 미세플라스틱을 현장에서 실시간 정성·정량 분석. 10μm 이하 입자 검출 가능.",
+    keywords: ["미세플라스틱", "라만분광", "SERS", "수질분석"], likes: 15,
+    detail: "은 나노입자 기반 SERS 기판과 소형 라만 분광기를 결합한 휴대용 시스템입니다. PE, PP, PS 등 주요 미세플라스틱 소재를 현장에서 즉시 식별할 수 있습니다.",
+    figures: [
+      { title: "[도 1] 휴대용 센서 외관도", desc: "소형 라만 분광기 본체, 시료 주입부, LCD 디스플레이로 구성된 현장분석 장비.", icon: "🔍" },
+      { title: "[도 2] 라만 스펙트럼 비교", desc: "PE, PP, PS 미세플라스틱의 특성 라만 피크 비교. 각 소재의 고유 피크를 통한 식별.", icon: "📊" }
+    ]
+  },
+  {
+    id: 8, title: "차세대 mRNA 백신 지질나노입자 제형 기술", field: "바이오", type: "라이선스",
+    status: "협의중", trl: 4, org: "한국생명공학연구원", inventor: "김태준 박사",
+    patentNo: "10-2024-0045678", price: "1억원~",
+    filingDate: "2024.04.18", examStatus: "심사중", overseas: ["PCT", "US", "EP"],
+    summary: "이온화 지질 라이브러리 스크리닝을 통해 최적화된 LNP 제형으로 mRNA 전달 효율 기존 대비 5배 향상. 상온 안정성 확보.",
+    keywords: ["mRNA", "지질나노입자", "백신", "약물전달"], likes: 52,
+    detail: "500종 이상의 이온화 지질 라이브러리에서 고속 스크리닝으로 최적 조합을 도출했습니다. 4°C에서 6개월, 상온에서 1개월 안정성을 확보하여 콜드체인 부담을 대폭 줄였습니다.",
+    figures: [
+      { title: "[도 1] LNP 구조 모식도", desc: "이온화 지질, 보조 지질, 콜레스테롤, PEG-지질로 구성된 지질나노입자의 4성분 구조.", icon: "🧬" },
+      { title: "[도 2] 안정성 시험 결과", desc: "4°C 및 상온 보관 조건에서 6개월간 입자 크기 및 mRNA 활성 유지율.", icon: "📊" }
+    ]
+  },
+  {
+    id: 9, title: "디지털 트윈 기반 스마트 공장 예지정비 플랫폼", field: "AI/SW", type: "매각",
+    status: "등록", trl: 7, org: "한국전자통신연구원", inventor: "윤하나 박사",
+    patentNo: "10-2023-0087654", price: "1.2억원",
+    filingDate: "2023.09.14", examStatus: "등록완료", overseas: ["US", "CN", "JP"],
+    summary: "IoT 센서 데이터와 물리 시뮬레이션을 결합한 디지털 트윈으로 설비 고장을 72시간 전 예측. 비계획 정지 80% 감소 실증.",
+    keywords: ["디지털트윈", "예지정비", "스마트공장", "IoT"], likes: 45,
+    detail: "설비의 물리 모델과 데이터 기반 모델을 융합하여 실시간 상태 진단 및 잔여수명을 예측합니다. 반도체·자동차 제조라인에서 실증을 완료했습니다.",
+    figures: [
+      { title: "[도 1] 디지털 트윈 아키텍처", desc: "물리 설비 ↔ IoT 센서 ↔ 디지털 트윈 엔진 ↔ 예지정비 대시보드 연결 구조.", icon: "🏭" },
+      { title: "[도 2] 고장 예측 정확도", desc: "72시간 전 고장 예측 정확도 94.2%. 비계획 정지 80% 감소 실증 데이터.", icon: "📈" }
+    ]
+  }
+];
 
 const FIELDS = ["전체", "AI/SW", "바이오", "소재", "에너지", "전자", "환경"];
-const TYPES = ["전체", "라이선스", "매각", "라이선스/매각"];
-const STATUSES = ["전체", "공개", "협의중", "완료"];
+const TYPES = ["전체", "라이선스", "매각"];
+const STATUSES = ["전체", "신규", "등록", "협의중"];
 
 const fieldColors = {
   "AI/SW": { bg: "#f0ede8", text: "#4338CA", border: "#e0dbd4" },
@@ -17,12 +135,12 @@ const fieldColors = {
 };
 
 const statusColors = {
-  "공개": { bg: "transparent", text: "transparent" },  // 공개 상태는 배지 미표시 (깔끔)
+  "신규": { bg: "#faf0f2", text: "#6B1D2E" },
+  "등록": { bg: "#f0f5f1", text: "#2d5a3e" },
   "협의중": { bg: "#fdf6ec", text: "#8a6d2b" },
-  "완료": { bg: "#f0f5f1", text: "#2d5a3e" },
 };
 
-// ─── Styles (matching ipzenith.com design) ─────────
+// ─── Styles (matching ipzenith.co.kr design) ─────────
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Sora:wght@300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
 
@@ -52,30 +170,13 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
 
 .platform { min-height:100vh; display:flex; flex-direction:column; }
 
-/* ── Top Bar ── ipzenith.com과 통일된 스타일 */
+/* ── Top Bar ── */
 .top-bar {
-  background:var(--dark); color:var(--text-lighter); padding:10px 32px;
+  background:var(--dark); color:var(--text-lighter); padding:12px 32px;
   font-size:11px; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center;
 }
-.top-bar-left { display:flex; align-items:center; gap:14px; }
-.top-bar-right { display:flex; align-items:center; gap:6px; }
-.top-bar a { color:var(--text-lighter); text-decoration:none; transition:color .2s; }
+.top-bar a { color:var(--text-lighter); text-decoration:none; margin-right:16px; transition:color .2s; }
 .top-bar a:hover { color:#fff; }
-.top-bar-item { color:var(--text-lighter); }
-.top-bar-divider { width:1px; height:10px; background:rgba(255,255,255,.15); }
-.lang-btn {
-  padding:3px 9px; font-size:10px; font-weight:500; letter-spacing:.5px;
-  color:var(--text-lighter); border:1px solid transparent; cursor:pointer; transition:all .2s;
-  font-family:'Sora','Noto Sans KR',sans-serif;
-}
-.lang-btn:hover { color:#fff; }
-.lang-btn.active { background:var(--oxblood); color:#fff; border-color:var(--oxblood); }
-.top-login-btn {
-  margin-left:8px; padding:4px 12px; font-size:10px; font-weight:500; letter-spacing:.5px;
-  border:1px solid rgba(255,255,255,.25); color:var(--text-lighter);
-  transition:all .2s; font-family:'Sora','Noto Sans KR',sans-serif;
-}
-.top-login-btn:hover { border-color:#fff; color:#fff; }
 
 /* ── Header ── */
 .header {
@@ -90,7 +191,7 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
   letter-spacing:.5px; line-height:1; display:inline-flex; align-items:baseline;
 }
 .logo-text .logo-z { color:var(--oxblood); font-size:40px; font-weight:400; margin-right:1px; position:relative; top:2px; letter-spacing:-2px; }
-.logo-sub { font-size:10px; color:var(--text-light); letter-spacing:1px; margin-top:2px; font-weight:500; }
+.logo-sub { font-size:10px; color:var(--text-light); letter-spacing:2.5px; text-transform:uppercase; margin-top:-2px; }
 
 .nav { display:flex; gap:0; }
 .nav-btn {
@@ -191,10 +292,6 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
   padding:0; display:flex; flex-direction:column;
 }
 .patent-card:hover { border-color:var(--oxblood); box-shadow:var(--shadow-lg); transform:translateY(-3px); }
-.card-status-corner {
-  position:absolute; top:14px; right:14px; z-index:2;
-}
-.card-status-corner .badge { font-size:10px; font-weight:700; padding:4px 10px; letter-spacing:.5px; }
 .card-top { padding:28px 24px 0; flex:1; }
 .card-badges { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
 .badge {
@@ -293,10 +390,10 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
 .info-value { font-size:13px; font-weight:500; color:var(--text); margin-top:2px; }
 
 .figures-section { margin-bottom:16px; }
-.figures-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
-.figure-card { background:var(--white); overflow:hidden; border:1px solid var(--border); }
+.figures-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px; background:var(--border); border:1px solid var(--border); }
+.figure-card { background:var(--white); overflow:hidden; }
 .figure-thumb {
-  height:auto; min-height:80px; background:var(--ivory); display:flex; align-items:center; justify-content:center;
+  height:auto; min-height:80px; background:var(--white); display:flex; align-items:center; justify-content:center;
   font-size:36px; border-bottom:1px solid var(--border); padding:8px;
 }
 .figure-thumb img { max-width:100%; max-height:240px; object-fit:contain; display:block; }
@@ -459,8 +556,6 @@ function TRLBar({ level }) {
 }
 
 function Badge({ text, colors }) {
-  // 플랫폼 상태 "공개"는 배지 없이 깔끔하게 (기본 상태)
-  if (!text || !colors || text === "공개") return null;
   return (
     <span className="badge" style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border || colors.bg}` }}>
       {text}
@@ -470,82 +565,41 @@ function Badge({ text, colors }) {
 
 // ─── Main App ─────────────────────────────────────────
 export default function App() {
-  const [page, setPage] = useState("browse");
+  const [page, setPageState] = useState("browse");
+  const [role, setRole] = useState("holder");
   const [search, setSearch] = useState("");
   const [fieldFilter, setFieldFilter] = useState("전체");
   const [typeFilter, setTypeFilter] = useState("전체");
-  const [statusFilter, setStatusFilter] = useState("전체");
-  const [selectedPatent, setSelectedPatent] = useState(null);
-  const [toast, setToast] = useState(null);
 
-  // Supabase 특허 데이터
-  const [patents, setPatents] = useState([]);
-  const [patentsLoading, setPatentsLoading] = useState(true);
-  // Supabase 로그인 세션 (플랫폼 등록 신청 시 필요)
-  const [supabaseSession, setSupabaseSession] = useState(null);
-  // 카테고리 확인 모달 상태 (저장 전에 카테고리 재확인용)
-  const [categoryConfirm, setCategoryConfirm] = useState(null); // { suggested: 'AI/SW', selected: 'AI/SW', dealType: '라이선스' } or null
-
-  // DB → UI 필드 매핑 (카드 렌더링용)
-  const mapDbRowToUi = (p) => ({
-    id: p.id,
-    title: p.title,
-    field: p.category,
-    type: p.deal_type,
-    status: p.status,
-    trl: p.trl_level || 0,
-    org: p.holder || "",
-    inventor: p.inventor || "",
-    patentNo: p.application_no || "",
-    price: p.price_display || "협의",
-    filingDate: p.application_date ? p.application_date.replace(/-/g, ".") : "",
-    examStatus: p.examination_status || "",
-    overseas: p.foreign_countries || [],
-    overseasDetail: p.overseas_detail || [],
-    summary: p.description || "",
-    keywords: p.tags || [],
-    likes: p.likes || 0,
-    detail: p.detail || p.description || "",
-    figures: p.figures || [],
-    // 법률현황 / 명세서 전문
-    registrationNumber: p.registration_no || null,
-    registrationDate: p.registration_date ? p.registration_date.replace(/-/g, ".") : null,
-    publicationNumber: p.publication_number || null,
-    fullTextXml: p.full_text_xml || null,
-    kiprisLinked: !!(p.registration_no || p.publication_number || p.full_text_xml),
-  });
-
-  // Supabase에서 공개된 특허 목록 불러오기
-  const loadPatentsFromSupabase = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("patents")
-        .select("*")
-        .eq("is_published", true)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setPatents((data || []).map(mapDbRowToUi));
-    } catch (err) {
-      console.error("Supabase 특허 로딩 실패:", err);
-      setPatents([]);
-    } finally {
-      setPatentsLoading(false);
+  // 브라우저 히스토리 연동 — 뒤로가기 지원
+  const setPage = (newPage) => {
+    setPageState(newPage);
+    if (typeof window !== "undefined") {
+      window.history.pushState({ page: newPage }, "", `#${newPage}`);
     }
   };
 
   useEffect(() => {
-    loadPatentsFromSupabase();
-    // Supabase 세션 확인
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSupabaseSession(session);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSupabaseSession(session);
-    });
-    return () => subscription.unsubscribe();
+    // 초기 로드 시 URL 해시에서 페이지 복원
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "");
+      if (["browse", "upload", "process"].includes(hash)) {
+        setPageState(hash);
+      }
+    }
+    // 뒤로가기/앞으로가기 처리
+    const handlePop = (e) => {
+      const p = e.state?.page || window.location.hash.replace("#", "") || "browse";
+      if (["browse", "upload", "process"].includes(p)) {
+        setPageState(p);
+      }
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
   }, []);
+  const [statusFilter, setStatusFilter] = useState("전체");
+  const [selectedPatent, setSelectedPatent] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // Upload state
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -572,7 +626,7 @@ export default function App() {
   const [lockoutUntil, setLockoutUntil] = useState(0);
   const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=final
   const [inquiryForm, setInquiryForm] = useState({ company: "", name: "", contact: "", dealType: "", message: "" });
-  const FIRM_EMAIL = "zenith@ipzenith.com";
+  const FIRM_EMAIL = "info@ipzenith.co.kr";
   const fileInputRef = useRef(null);
   const pdfjsRef = useRef(null);
 
@@ -798,119 +852,6 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ────────────────────────────────────────────
-  // 플랫폼 등록 신청 (1단계) → 카테고리·거래형태 확인 모달 열기
-  // ────────────────────────────────────────────
-  const openCategoryConfirm = () => {
-    if (!supabaseSession) {
-      showToast("❌ /admin 에서 먼저 로그인해주세요.");
-      return;
-    }
-    if (!smkData) return;
-
-    // Claude가 반환한 field를 6개 카테고리 중 하나로 추정
-    const suggestCategory = (raw) => {
-      if (!raw) return "AI/SW";
-      const r = raw.toString();
-      if (r.match(/AI|SW|소프트웨어|알고리즘|인공지능|데이터|딥러닝|머신러닝/i)) return "AI/SW";
-      if (r.match(/바이오|의료|의약|제약|생명|약물|세포|단백|유전/)) return "바이오";
-      if (r.match(/소재|재료|복합|고분자|나노|합금|세라믹/)) return "소재";
-      if (r.match(/에너지|전지|태양|배터리|연료|발전|수소/)) return "에너지";
-      if (r.match(/전자|반도체|센서|디스플레이|회로|통신/)) return "전자";
-      if (r.match(/환경|수질|대기|폐기물|오염|친환경/)) return "환경";
-      return "AI/SW";
-    };
-
-    setCategoryConfirm({
-      suggested: smkData.field || "(미분류)",
-      selected: suggestCategory(smkData.field),
-      dealType: "라이선스/매각", // 기본: 둘 다 가능
-    });
-  };
-
-  // ────────────────────────────────────────────
-  // 플랫폼 등록 신청 (2단계) → 실제 Supabase 저장
-  // ────────────────────────────────────────────
-  const saveSmkToSupabase = async () => {
-    if (!categoryConfirm || !smkData || !supabaseSession) return;
-
-    const mapExamStatus = (raw) => {
-      if (!raw) return null;
-      if (raw.includes("등록")) return "등록완료";
-      if (raw.includes("심사")) return "심사중";
-      return null;
-    };
-
-    const convertDate = (dateStr) => {
-      if (!dateStr || dateStr === "-") return null;
-      const m = dateStr.match(/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})/);
-      return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
-    };
-
-    // 상세설명: Claude가 생성한 여러 섹션을 하나로 결합
-    const detail = [
-      smkData.core && `■ 핵심 기술\n${smkData.core}`,
-      smkData.advantage && `■ 특징 및 장점\n${smkData.advantage}`,
-      smkData.application && `■ 활용 분야\n${smkData.application}`,
-      smkData.effect && `■ 기대 효과\n${smkData.effect}`,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    const patentData = {
-      title: smkData.title || "제목 없음",
-      description: smkData.summary || null,
-      detail: detail || null,
-      category: categoryConfirm.selected, // 사용자가 확인한 값
-      deal_type: categoryConfirm.dealType,
-      status: "공개",
-      trl_level: smkData.trl ? parseInt(smkData.trl) : null,
-      application_date: convertDate(smkData.filingDate),
-      application_no: smkData.patentNo || null,
-      registration_no: smkData.registrationNumber || null,
-      registration_date: convertDate(smkData.registrationDate),
-      publication_number: smkData.publicationNumber || null,
-      full_text_xml: smkData.fullTextXml || null,
-      examination_status: mapExamStatus(smkData.examStatus),
-      foreign_countries: smkData.overseas || [],
-      overseas_detail: smkData.overseasDetail || [],
-      tags: smkData.keywords || [],
-      holder: smkData.org || null,
-      inventor: smkData.inventor || null,
-      price_display: null,
-      contact_email: null,
-      is_published: true,
-      // 도면: 이미지 있는 것만 저장 (빈 figure 제외)
-      figures: (smkData.figures || [])
-        .filter((f) => f && f.imageUrl)
-        .map((f) => ({
-          page: f.page || null,
-          title: f.title || "",
-          desc: f.desc || "",
-          imageUrl: f.imageUrl,
-          icon: "📊",
-        })),
-    };
-
-    const { error } = await supabase.from("patents").insert([patentData]);
-    if (error) {
-      showToast("❌ 저장 실패: " + error.message);
-      console.error("Supabase insert error:", error);
-      return;
-    }
-
-    showToast("✅ Supabase에 저장되었습니다. 기술 찾기에서 확인하세요.");
-
-    // 모달 닫고 초기 화면으로
-    setCategoryConfirm(null);
-    await loadPatentsFromSupabase();
-    setSmkData(null);
-    setUploadedFile(null);
-    setPdfUrl(null);
-    setPatentInput("");
-    setTimeout(() => setPage("browse"), 800);
-  };
-
   const updateInquiry = (key, val) => setInquiryForm(prev => ({ ...prev, [key]: val }));
 
   // 이메일 발송 (mailto)
@@ -941,7 +882,7 @@ export default function App() {
         `${inquiryForm.message}`,
         ``,
         `---`,
-        `Zenithvalue (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
+        `IP ZENITH 기술이전 플랫폼에서 발송됨`,
       ].join("\n");
     } else {
       body = [
@@ -959,7 +900,7 @@ export default function App() {
         `해당 기술의 이전 상담을 요청합니다.`,
         ``,
         `---`,
-        `Zenithvalue (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
+        `IP ZENITH 기술이전 플랫폼에서 발송됨`,
       ].join("\n");
     }
 
@@ -1034,16 +975,10 @@ export default function App() {
   };
 
   // Filter logic
-  const filtered = patents.filter((p) => {
+  const filtered = SAMPLE_PATENTS.filter((p) => {
     if (search && !p.title.includes(search) && !p.summary.includes(search) && !p.keywords.some(k => k.includes(search))) return false;
     if (fieldFilter !== "전체" && p.field !== fieldFilter) return false;
-    if (typeFilter !== "전체") {
-      // "라이선스/매각" 복합 타입은 '라이선스' 필터와 '매각' 필터 양쪽에서 모두 노출
-      const typeMatches =
-        p.type === typeFilter ||
-        (p.type === "라이선스/매각" && (typeFilter === "라이선스" || typeFilter === "매각"));
-      if (!typeMatches) return false;
-    }
+    if (typeFilter !== "전체" && p.type !== typeFilter) return false;
     if (statusFilter !== "전체" && p.status !== statusFilter) return false;
     return true;
   });
@@ -1310,38 +1245,21 @@ export default function App() {
     <>
       <style>{css}</style>
       <div className="platform">
-        {/* Top Bar — ipzenith.com과 통일된 스타일 */}
+        {/* Top Bar */}
         <div className="top-bar">
-          <div className="top-bar-left">
-            <span className="top-bar-item">Since 2003</span>
-            <span className="top-bar-divider" />
-            <a href="tel:+8228883066">+82-2-888-3066</a>
-            <span className="top-bar-divider" />
-            <a href="mailto:zenith@ipzenith.com">zenith@ipzenith.com</a>
+          <div>
+            <a href="https://ipzenith.co.kr" target="_blank" rel="noopener">ipzenith.co.kr</a>
+            <a href="mailto:info@ipzenith.co.kr">Contact</a>
           </div>
-          <div className="top-bar-right">
-            <span className="lang-btn active">국문</span>
-            <span className="lang-btn">ENG</span>
-            <span className="lang-btn">日本語</span>
-            <span className="lang-btn">中文</span>
-            <a
-              href="https://www.ipzenith.com"
-              target="_blank"
-              rel="noopener"
-              className="top-login-btn"
-              title="제니스특허법률사무소 홈페이지"
-            >
-              ipzenith.com
-            </a>
-          </div>
+          <span>IP Technology Transfer Platform</span>
         </div>
 
         {/* Header */}
         <header className="header">
           <div className="header-left">
             <div className="logo-area" onClick={() => setPage("browse")}>
-              <div className="logo-text"><span className="logo-z">Z</span>enithvalue</div>
-              <div className="logo-sub">제니스특허법률사무소 IP 거래 플랫폼</div>
+              <div className="logo-text"><span className="logo-z">Z</span>enith IP</div>
+              <div className="logo-sub">제니스특허법률사무소</div>
             </div>
             <nav className="nav">
               <button className={`nav-btn ${page === "browse" ? "active" : ""}`} onClick={() => setPage("browse")}>기술 찾기</button>
@@ -1364,16 +1282,16 @@ export default function App() {
           <section className="hero">
             <div className="hero-content">
               <div className="hero-firm">제니스특허법률사무소 · Technology Transfer</div>
-              <h1>제니스가 선별한 <span>Valued IP</span>,<br/>그 가치를 보장합니다.</h1>
+              <h1>대학·연구소 <span>특허 기술</span>을<br/>기업과 연결합니다</h1>
               <p className="hero-desc">
-                창업사업 및 코스닥 기술특례상장 심의위원이 직접 선별·검증한 사업화 유망 특허만을 소개합니다.
-                기술 매입·라이선스 상담 전 과정을 지원합니다.
+                제니스특허법률사무소가 운영하는 IP 기술이전 플랫폼입니다.
+                대학·연구소의 우수 특허를 기업에 소개하고, 기술 매입·라이선스 상담을 지원합니다.
               </p>
               <div className="stats-row">
-                <div className="stat-card"><div className="stat-num">{patents.length}</div><div className="stat-label">등록 기술</div></div>
-                <div className="stat-card"><div className="stat-num">{new Set(patents.map(p => p.org).filter(Boolean)).size}</div><div className="stat-label">참여 기관</div></div>
-                <div className="stat-card"><div className="stat-num">{patents.filter(p => p.status === "완료").length}</div><div className="stat-label">이전 완료</div></div>
-                <div className="stat-card"><div className="stat-num">{patents.filter(p => p.status === "협의중").length}</div><div className="stat-label">협의 진행</div></div>
+                <div className="stat-card"><div className="stat-num">127</div><div className="stat-label">등록 기술</div></div>
+                <div className="stat-card"><div className="stat-num">34</div><div className="stat-label">참여 기관</div></div>
+                <div className="stat-card"><div className="stat-num">18</div><div className="stat-label">이전 완료</div></div>
+                <div className="stat-card"><div className="stat-num">23</div><div className="stat-label">협의 진행</div></div>
               </div>
             </div>
           </section>
@@ -1383,6 +1301,15 @@ export default function App() {
           {/* ─── BROWSE PAGE ─── */}
           {page === "browse" && (
             <>
+              <div className="role-tabs">
+                <button className={`role-tab ${role === "holder" ? "active" : ""}`} onClick={() => setRole("holder")}>
+                  🏛 기술 보유자
+                </button>
+                <button className={`role-tab ${role === "buyer" ? "active" : ""}`} onClick={() => setRole("buyer")}>
+                  🏢 수요 기업
+                </button>
+              </div>
+
               <div className="filters-bar">
                 <div className="search-box">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1412,29 +1339,21 @@ export default function App() {
                 ))}
               </div>
 
-              {patentsLoading ? (
-                <div className="empty-state">
-                  <p style={{ color: "var(--text-light)" }}>기술 목록을 불러오는 중입니다...</p>
-                </div>
-              ) : filtered.length === 0 ? (
+              {filtered.length === 0 ? (
                 <div className="empty-state">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-light)" strokeWidth="1.5">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
-                  <p>{patents.length === 0 ? "아직 등록된 기술이 없습니다. 우측 상단 등록하기로 첫 번째 기술을 등록해주세요." : "검색 결과가 없습니다. 필터를 변경해 보세요."}</p>
+                  <p>검색 결과가 없습니다. 필터를 변경해 보세요.</p>
                 </div>
               ) : (
                 <div className="patent-grid">
                   {filtered.map((p) => (
                     <div key={p.id} className="patent-card" onClick={() => setSelectedPatent(p)}>
-                      {p.status && p.status !== "공개" && (
-                        <div className="card-status-corner">
-                          <Badge text={p.status} colors={statusColors[p.status]} />
-                        </div>
-                      )}
                       <div className="card-top">
                         <div className="card-badges">
                           <Badge text={p.field} colors={fieldColors[p.field] || { bg: "#F1F5F9", text: "#475569" }} />
+                          <Badge text={p.status} colors={statusColors[p.status]} />
                           <span className="badge" style={{ background: "var(--ivory)", color: "var(--text-mid)", border: "1px solid var(--border)" }}>
                             {p.type}
                           </span>
@@ -1448,19 +1367,15 @@ export default function App() {
                         <div className="card-meta-row">
                           <div className="meta-item">
                             <span className="meta-label">출원일</span>
-                            <span className="meta-value">{p.filingDate || "-"}</span>
+                            <span className="meta-value">{p.filingDate}</span>
                           </div>
-                          {p.examStatus && (
-                            <>
-                              <div className="meta-divider" />
-                              <div className="meta-item">
-                                <span className={`exam-badge ${p.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
-                                  <span className="dot" />
-                                  {p.examStatus}
-                                </span>
-                              </div>
-                            </>
-                          )}
+                          <div className="meta-divider" />
+                          <div className="meta-item">
+                            <span className={`exam-badge ${p.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
+                              <span className="dot" />
+                              {p.examStatus}
+                            </span>
+                          </div>
                           <div className="meta-divider" />
                           <div className="meta-item">
                             <span className="meta-label">해외</span>
@@ -1481,7 +1396,7 @@ export default function App() {
                         <span className="card-org">{p.org}</span>
                         <span className="card-price">{p.price}</span>
                       </div>
-                      {p.status !== "완료" && (
+                      {role === "buyer" && (
                         <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedPatent(p); }}>
                           매입 의사 타진 →
                         </button>
@@ -1826,34 +1741,32 @@ export default function App() {
                         </div>
 
                         {/* 도면 */}
-                        {(() => {
-                          const figsWithImg = (smkData?.figures || []).filter(f => f && f.imageUrl);
-                          if (figsWithImg.length === 0) return null;
-                          return (
-                            <div className="smk-field">
-                              <label>도면</label>
-                              <div className="figures-grid" style={{ marginTop: 8 }}>
-                                {figsWithImg.map((fig, i) => (
-                                  <div key={i} className="figure-card">
+                        {smkData.figures && smkData.figures.length > 0 && (
+                          <div className="smk-field">
+                            <label>도면</label>
+                            <div className="figures-grid" style={{ marginTop: 8 }}>
+                              {smkData.figures.map((fig, i) => (
+                                <div key={i} className="figure-card">
+                                  {fig.imageUrl && (
                                     <div className="figure-thumb">
                                       <img src={fig.imageUrl} alt={fig.title} onError={(e) => { e.target.parentElement.style.display = "none"; }} />
                                     </div>
-                                    <div className="figure-info">
-                                      <div className="figure-title">{fig.title}</div>
-                                      {fig.desc && <div className="figure-desc">{fig.desc}</div>}
-                                    </div>
+                                  )}
+                                  <div className="figure-info">
+                                    <div className="figure-title">{fig.title}</div>
+                                    {fig.desc && <div className="figure-desc">{fig.desc}</div>}
                                   </div>
-                                ))}
-                              </div>
+                                </div>
+                              ))}
                             </div>
-                          );
-                        })()}
+                          </div>
+                        )}
 
-                        <button className="smk-register-btn" onClick={openCategoryConfirm}>
+                        <button className="smk-register-btn" onClick={() => showToast("✅ 플랫폼 등록이 신청되었습니다. 변리사 검토 후 게시됩니다.")}>
                           플랫폼 등록 신청
                         </button>
                         <p style={{ textAlign: "center", fontSize: 11, color: "var(--text-light)", marginTop: 8 }}>
-                          * /admin 에서 먼저 로그인한 후 이 버튼을 눌러주세요. 등록된 특허는 메인 페이지에 즉시 공개됩니다.
+                          * 변리사 검토 후 플랫폼에 게시됩니다. 수수료 안내는 별도 연락드립니다.
                         </p>
                       </div>
                     ) : smkTab === "legal" ? (
@@ -1941,34 +1854,69 @@ export default function App() {
                       </div>
                     ) : (
                       <div>
+                        {/* KIPRIS 전문 보기 버튼 */}
+                        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+                          <a
+                            href={`https://doi.org/10.8080/${smkData?.patentNo?.replace(/[^0-9]/g, '') || ''}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 8,
+                              padding: "10px 20px", background: "#6B1D2E", color: "#fff",
+                              fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase",
+                              textDecoration: "none", fontFamily: "'Sora',sans-serif", cursor: "pointer"
+                            }}
+                          >
+                            📄 KIPRIS에서 전문(PDF) 보기
+                          </a>
+                          {smkData?.publicationNumber && (
+                            <a
+                              href={`https://doi.org/10.8080/${smkData.publicationNumber.replace(/[^0-9]/g, '')}`}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 8,
+                                padding: "10px 20px", background: "var(--white)", color: "var(--dark)",
+                                fontSize: 12, fontWeight: 600, letterSpacing: 1, border: "1px solid var(--border)",
+                                textDecoration: "none", fontFamily: "'Sora',sans-serif", cursor: "pointer"
+                              }}
+                            >
+                              📋 공개공보 보기
+                            </a>
+                          )}
+                        </div>
+
+                        {/* 전문 텍스트 뷰어 */}
                         {smkData?.fullTextXml ? (
-                          <div style={{
-                            maxHeight: 500, overflowY: "auto", padding: "20px 24px",
-                            border: "1px solid var(--border)", background: "var(--white)",
-                            fontSize: 13, lineHeight: 1.9, color: "var(--text-mid)",
-                            fontFamily: "'Noto Sans KR', sans-serif"
-                          }}>
-                            {smkData.fullTextXml.split('\n').map((line, i) => {
-                              const trimmed = line.trim();
-                              if (!trimmed) return <br key={i} />;
-                              // 섹션 제목 (기술분야, 발명의 내용, 도면의 간단한 설명, 청구항 등)
-                              const isSection = /^(\[|【)?.*(기술\s*분야|배경\s*기술|발명의\s*(내용|배경)|해결하려는\s*과제|과제의\s*해결|발명의\s*효과|도면의\s*간단한\s*설명|발명을\s*실시하기|실시예|청구의\s*범위|산업상\s*이용)/.test(trimmed);
-                              const isFigRef = /^\[?\s*도\s*\d+/.test(trimmed);
-                              const isClaim = /^\[?\s*청구항\s*\d+/.test(trimmed);
-                              if (isSection) return (
-                                <div key={i} style={{ fontWeight: 700, color: "var(--dark)", fontSize: 14, marginTop: 18, marginBottom: 6, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
-                                  {trimmed}
-                                </div>
-                              );
-                              if (isFigRef) return (
-                                <div key={i} style={{ color: "#6B1D2E", fontWeight: 600, marginTop: 4 }}>{trimmed}</div>
-                              );
-                              if (isClaim) return (
-                                <div key={i} style={{ fontWeight: 600, color: "var(--dark)", marginTop: 10 }}>{trimmed}</div>
-                              );
-                              return <p key={i} style={{ margin: "2px 0" }}>{trimmed}</p>;
-                            })}
-                          </div>
+                          <>
+                            <div style={{ fontSize: 11, color: "var(--text-light)", marginBottom: 8, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>
+                              명세서 텍스트 (KIPRIS XML 추출)
+                            </div>
+                            <div style={{
+                              maxHeight: 450, overflowY: "auto", padding: "20px 24px",
+                              border: "1px solid var(--border)", background: "var(--white)",
+                              fontSize: 13, lineHeight: 1.9, color: "var(--text-mid)",
+                              fontFamily: "'Noto Sans KR', sans-serif"
+                            }}>
+                              {smkData.fullTextXml.split('\n').map((line, i) => {
+                                const trimmed = line.trim();
+                                if (!trimmed) return <br key={i} />;
+                                const isSection = /^(\[|【)?.*(기술\s*분야|배경\s*기술|발명의\s*(내용|배경)|해결하려는\s*과제|과제의\s*해결|발명의\s*효과|도면의\s*간단한\s*설명|발명을\s*실시하기|실시예|청구의\s*범위|산업상\s*이용)/.test(trimmed);
+                                const isFigRef = /^\[?\s*도\s*\d+/.test(trimmed);
+                                const isClaim = /^\[?\s*청구항\s*\d+/.test(trimmed);
+                                if (isSection) return (
+                                  <div key={i} style={{ fontWeight: 700, color: "var(--dark)", fontSize: 14, marginTop: 18, marginBottom: 6, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
+                                    {trimmed}
+                                  </div>
+                                );
+                                if (isFigRef) return (
+                                  <div key={i} style={{ color: "#6B1D2E", fontWeight: 600, marginTop: 4 }}>{trimmed}</div>
+                                );
+                                if (isClaim) return (
+                                  <div key={i} style={{ fontWeight: 600, color: "var(--dark)", marginTop: 10 }}>{trimmed}</div>
+                                );
+                                return <p key={i} style={{ margin: "2px 0" }}>{trimmed}</p>;
+                              })}
+                            </div>
+                          </>
                         ) : pdfUrl ? (
                           <iframe src={pdfUrl} className="pdf-viewer" title="Patent PDF" />
                         ) : (
@@ -2041,111 +1989,17 @@ export default function App() {
         <footer className="footer">
           <div className="footer-content">
             <div className="footer-left">
-              <div className="footer-name">Zenithvalue</div>
+              <div className="footer-name">Zenith IP</div>
               <div className="footer-info">
-                제니스특허법률사무소 IP 거래 플랫폼<br/>
-                <a href="https://z-ipvalue.com" target="_blank" rel="noopener">z-ipvalue.com</a>
-                <span style={{ margin: "0 6px", color: "var(--text-lighter)" }}>·</span>
-                법률 지원: <a href="https://ipzenith.com" target="_blank" rel="noopener">제니스특허법률사무소 (ipzenith.com)</a>
+                제니스특허법률사무소 · IP 기술이전 플랫폼<br/>
+                <a href="https://ipzenith.co.kr" target="_blank" rel="noopener">ipzenith.co.kr</a>
               </div>
             </div>
             <div className="footer-right">
-              © 2026 Zenithvalue
+              © 2026 Zenith Patent Law Firm
             </div>
           </div>
         </footer>
-
-        {/* 카테고리·거래형태 확인 모달 (플랫폼 등록 신청 시) */}
-        {categoryConfirm && (
-          <div className="modal-overlay" onClick={() => setCategoryConfirm(null)} style={{ zIndex: 200 }}>
-            <div
-              className="modal"
-              onClick={(e) => e.stopPropagation()}
-              style={{ maxWidth: 480, padding: 0 }}
-            >
-              <div style={{ padding: "24px 28px 0" }}>
-                <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: "var(--dark)" }}>
-                  플랫폼 등록 확인
-                </h3>
-                <p style={{ fontSize: 13, color: "var(--text-mid)", margin: "8px 0 0", lineHeight: 1.6 }}>
-                  AI가 분석한 결과를 검토해주세요. 저장 전에 카테고리와 거래형태를 최종 확인할 수 있습니다.
-                </p>
-              </div>
-
-              <div style={{ padding: "20px 28px", borderTop: "1px solid var(--border)", marginTop: 20 }}>
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-light)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-                    AI 추정 분야
-                  </label>
-                  <div style={{ fontSize: 13, color: "var(--text-mid)", padding: "8px 12px", background: "var(--ivory)", borderRadius: 0 }}>
-                    {categoryConfirm.suggested}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-light)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-                    플랫폼 카테고리 <span style={{ color: "var(--oxblood)" }}>*</span>
-                  </label>
-                  <select
-                    value={categoryConfirm.selected}
-                    onChange={(e) => setCategoryConfirm({ ...categoryConfirm, selected: e.target.value })}
-                    style={{
-                      width: "100%", padding: "10px 12px", fontSize: 14,
-                      border: "1px solid var(--border)", borderRadius: 0, background: "white",
-                      fontFamily: "inherit", outline: "none"
-                    }}
-                  >
-                    {["AI/SW", "바이오", "소재", "에너지", "전자", "환경"].map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-light)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-                    거래형태 <span style={{ color: "var(--oxblood)" }}>*</span>
-                  </label>
-                  <select
-                    value={categoryConfirm.dealType}
-                    onChange={(e) => setCategoryConfirm({ ...categoryConfirm, dealType: e.target.value })}
-                    style={{
-                      width: "100%", padding: "10px 12px", fontSize: 14,
-                      border: "1px solid var(--border)", borderRadius: 0, background: "white",
-                      fontFamily: "inherit", outline: "none"
-                    }}
-                  >
-                    <option value="라이선스/매각">라이선스/매각 (둘 다 가능)</option>
-                    <option value="라이선스">라이선스만</option>
-                    <option value="매각">매각만</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ padding: "16px 28px 24px", display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid var(--border)" }}>
-                <button
-                  onClick={() => setCategoryConfirm(null)}
-                  style={{
-                    padding: "10px 20px", background: "white", color: "var(--text-mid)",
-                    border: "1px solid var(--border)", fontSize: 13, cursor: "pointer",
-                    fontFamily: "inherit"
-                  }}
-                >
-                  취소
-                </button>
-                <button
-                  onClick={saveSmkToSupabase}
-                  style={{
-                    padding: "10px 20px", background: "var(--oxblood)", color: "white",
-                    border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                    fontFamily: "inherit", letterSpacing: 0.5
-                  }}
-                >
-                  이 설정으로 저장
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Detail Modal */}
         {selectedPatent && (
@@ -2172,13 +2026,9 @@ export default function App() {
                   <div className="info-item">
                     <div className="info-label">심사 현황</div>
                     <div className="info-value">
-                      {selectedPatent.examStatus ? (
-                        <span className={`exam-badge ${selectedPatent.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
-                          <span className="dot" />{selectedPatent.examStatus}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: 12, color: "var(--text-light)" }}>미확인</span>
-                      )}
+                      <span className={`exam-badge ${selectedPatent.examStatus === "등록완료" ? "registered" : "reviewing"}`}>
+                        <span className="dot" />{selectedPatent.examStatus}
+                      </span>
                     </div>
                   </div>
                   <div className="info-item"><div className="info-label">발명자</div><div className="info-value">{selectedPatent.inventor}</div></div>
@@ -2196,15 +2046,6 @@ export default function App() {
                       ) : <span style={{ fontSize: 12, color: "var(--text-light)" }}>국내만</span>}
                     </div>
                   </div>
-                  {selectedPatent.registrationNumber && (
-                    <div className="info-item"><div className="info-label">등록번호</div><div className="info-value">{selectedPatent.registrationNumber}</div></div>
-                  )}
-                  {selectedPatent.registrationDate && (
-                    <div className="info-item"><div className="info-label">등록일</div><div className="info-value">{selectedPatent.registrationDate}</div></div>
-                  )}
-                  {selectedPatent.publicationNumber && (
-                    <div className="info-item"><div className="info-label">공개번호</div><div className="info-value">{selectedPatent.publicationNumber}</div></div>
-                  )}
                 </div>
 
                 {/* 기술 개요 + 상세 — 2열 병렬 */}
@@ -2219,31 +2060,29 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 도면 섹션 — 이미지가 있는 도면만 표시 */}
-                {(() => {
-                  const figuresWithImg = (selectedPatent.figures || []).filter(f => f && f.imageUrl);
-                  if (figuresWithImg.length === 0) return null;
-                  return (
-                    <div className="figures-section">
-                      <h4 style={{ fontSize: 12, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-                        도면
-                      </h4>
-                      <div className="figures-grid">
-                        {figuresWithImg.map((fig, i) => (
-                          <div key={i} className="figure-card">
+                {/* 도면 섹션 */}
+                {selectedPatent.figures && selectedPatent.figures.length > 0 && (
+                  <div className="figures-section">
+                    <h4 style={{ fontSize: 12, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                      도면
+                    </h4>
+                    <div className="figures-grid">
+                      {selectedPatent.figures.map((fig, i) => (
+                        <div key={i} className="figure-card">
+                          {fig.imageUrl && (
                             <div className="figure-thumb">
                               <img src={fig.imageUrl} alt={fig.title} onError={(e) => { e.target.parentElement.style.display = "none"; }} />
                             </div>
-                            <div className="figure-info">
-                              <div className="figure-title">{fig.title}</div>
-                              {fig.desc && <div className="figure-desc">{fig.desc}</div>}
-                            </div>
+                          )}
+                          <div className="figure-info">
+                            <div className="figure-title">{fig.title}</div>
+                            {fig.desc && <div className="figure-desc">{fig.desc}</div>}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })()}
+                  </div>
+                )}
 
                 {/* 키워드 — 인라인 */}
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 14 }}>
@@ -2252,26 +2091,11 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* 문의 폼 - 완료된 건은 안내 메시지만 표시 */}
-                {selectedPatent.status === "완료" ? (
-                  <div style={{
-                    padding: "32px 24px", textAlign: "center",
-                    background: "#f0f5f1", border: "1px solid #d5e8dc", marginTop: 18
-                  }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-                    <h3 style={{ fontFamily: "'DM Serif Display',serif", fontSize: 18, fontWeight: 400, color: "#2d5a3e", margin: "0 0 6px" }}>
-                      기술이전 완료
-                    </h3>
-                    <p style={{ fontSize: 13, color: "var(--text-mid)", lineHeight: 1.6 }}>
-                      이 기술은 이미 기술이전이 완료되어 추가 문의가 불가능합니다.<br />
-                      유사한 기술에 관심이 있으시면 메인 페이지의 다른 특허를 확인하거나, 제니스특허법률사무소({FIRM_EMAIL})로 직접 문의해주세요.
-                    </p>
-                  </div>
-                ) : (
-                <div className="inquiry-form">
-                  <h3>매입 의사 타진 · 기술이전 문의</h3>
-                  <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
-                  <div className="form-row">
+                {role === "buyer" && (
+                  <div className="inquiry-form">
+                    <h3>매입 의사 타진 · 기술이전 문의</h3>
+                    <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
+                    <div className="form-row">
                       <div className="form-field">
                         <label>회사명</label>
                         <input placeholder="회사명을 입력하세요" value={inquiryForm.company} onChange={(e) => updateInquiry("company", e.target.value)} />
@@ -2310,6 +2134,21 @@ export default function App() {
                       sendInquiryEmail("buyer");
                     }}>
                       📧 이메일로 문의 접수
+                    </button>
+                  </div>
+                )}
+
+                {role === "holder" && (
+                  <div style={{ background: "var(--ivory)", borderRadius: 0, padding: 20, marginTop: 20, textAlign: "center" }}>
+                    <p style={{ fontSize: 14, color: "var(--text-mid)", marginBottom: 4 }}>
+                      이 기술의 이전 상담을 받고 싶으시면 아래 버튼을 클릭하세요.
+                    </p>
+                    <p style={{ fontSize: 12, color: "var(--text-light)", marginBottom: 14 }}>
+                      제니스특허법률사무소({FIRM_EMAIL})로 상담 신청 이메일이 작성됩니다.
+                    </p>
+                    <button className="form-submit" style={{ maxWidth: 320, margin: "0 auto" }}
+                      onClick={() => sendInquiryEmail("holder")}>
+                      📧 기술이전 상담 신청
                     </button>
                   </div>
                 )}
