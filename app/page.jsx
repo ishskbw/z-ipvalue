@@ -393,9 +393,10 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
 .figures-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px; background:var(--border); border:1px solid var(--border); }
 .figure-card { background:var(--white); overflow:hidden; }
 .figure-thumb {
-  height:120px; background:var(--ivory); display:flex; align-items:center; justify-content:center;
-  font-size:36px; border-bottom:1px solid var(--border);
+  height:auto; min-height:80px; background:var(--white); display:flex; align-items:center; justify-content:center;
+  font-size:36px; border-bottom:1px solid var(--border); padding:8px;
 }
+.figure-thumb img { max-width:100%; max-height:240px; object-fit:contain; display:block; }
 .figure-info { padding:12px 14px; }
 .figure-title { font-size:12px; font-weight:600; color:var(--dark); margin-bottom:3px; }
 .figure-desc { font-size:11px; color:var(--text-mid); line-height:1.5; }
@@ -1164,9 +1165,64 @@ export default function App() {
         ? (bib.registerStatus.includes("등록") ? "등록완료" : "심사중")
         : "확인필요";
 
+      // PDF URL — 공고(등록) 우선, 없으면 공개
+      const kiprisPdfUrl = data.pdfUrls?.ann || data.pdfUrls?.pub || "";
+      const proxiedPdfUrl = kiprisPdfUrl ? `/api/kipris/pdf?url=${encodeURIComponent(kiprisPdfUrl)}` : "";
+      if (proxiedPdfUrl) setPdfUrl(proxiedPdfUrl);
+
       let figures = [];
-      if (bib.bigDrawing) {
-        figures = [{ title: "[대표도면]", desc: "KIPRIS 대표 도면", imageUrl: bib.bigDrawing, page: null }];
+      const drawingUrl = bib.bigDrawing || bib.thumbnailPath || "";
+      const figDescs = data.smk?.figureDescs || [];
+
+      // PDF.js로 도면 페이지 추출 시도
+      if (proxiedPdfUrl && pdfjsRef.current) {
+        setLoadingStep("figures");
+        try {
+          const pdfRes = await fetch(proxiedPdfUrl);
+          const pdfBuf = await pdfRes.arrayBuffer();
+          const pdf = await pdfjsRef.current.getDocument({ data: pdfBuf }).promise;
+          const totalPages = pdf.numPages;
+
+          // 마지막 30% 페이지가 도면인 경우가 많음 — 최대 8페이지 추출
+          const figStartPage = Math.max(1, Math.floor(totalPages * 0.7));
+          const figPages = [];
+          for (let p = figStartPage; p <= totalPages && figPages.length < 8; p++) {
+            try {
+              const pg = await pdf.getPage(p);
+              const vp = pg.getViewport({ scale: 1 });
+              const scale = 300 / vp.height;
+              const sv = pg.getViewport({ scale });
+              const canvas = document.createElement("canvas");
+              canvas.width = sv.width;
+              canvas.height = sv.height;
+              await pg.render({ canvasContext: canvas.getContext("2d"), viewport: sv }).promise;
+              figPages.push({ page: p, dataUrl: canvas.toDataURL("image/png") });
+            } catch(e) {}
+          }
+
+          if (figPages.length > 0) {
+            figures = figPages.map((fp, i) => ({
+              title: figDescs[i] ? `[${figDescs[i].no}] ${figDescs[i].title}` : `[도면 p.${fp.page}]`,
+              desc: figDescs[i]?.desc || "",
+              imageUrl: fp.dataUrl,
+            }));
+          }
+        } catch(e) {
+          console.warn("PDF figure extraction error:", e);
+        }
+      }
+
+      // PDF 추출 실패 시 KIPRIS 대표도면 + Claude 설명으로 대체
+      if (figures.length === 0) {
+        if (figDescs.length > 0) {
+          figures = figDescs.map((fd, i) => ({
+            title: `[${fd.no}] ${fd.title}`,
+            desc: fd.desc,
+            imageUrl: i === 0 && drawingUrl ? drawingUrl : null,
+          }));
+        } else if (drawingUrl) {
+          figures = [{ title: "[대표도면]", desc: "", imageUrl: drawingUrl }];
+        }
       }
 
       setSmkData({
@@ -1595,7 +1651,7 @@ export default function App() {
                       { key: "kipris-bib", icon: "🔍", label: "서지정보" },
                       { key: "kipris-family", icon: "🌐", label: "해외출원" },
                       { key: "ai", icon: "🤖", label: "AI 분석" },
-                      { key: "figures", icon: "🖼️", label: "도면" },
+                      { key: "figures", icon: "🖼️", label: "도면 추출" },
                       { key: "merge", icon: "✨", label: "결과 병합" },
                     ] : [
                       { key: "pdf", icon: "📄", label: "PDF 읽기" },
@@ -1646,8 +1702,8 @@ export default function App() {
                   <div style={{ textAlign: "center", fontSize: 13, color: "var(--text-mid)" }}>
                     {loadingStep === "pdf" && "PDF 파일을 읽고 있습니다..."}
                     {loadingStep === "ai" && "Claude AI가 명세서를 분석하여 SMK를 작성 중입니다..."}
-                    {loadingStep === "figures" && (uploadMode === "number" ? "KIPRIS에서 대표 도면을 가져오고 있습니다..." : "PDF에서 도면 이미지를 추출하고 있습니다...")}
-                    {loadingStep === "kipris-bib" && "KIPRIS에서 특허 심사현황을 조회하고 있습니다..."}
+                    {loadingStep === "figures" && "전문 PDF에서 도면을 추출하고 있습니다..."}
+                    {loadingStep === "kipris-bib" && "KIPRIS에서 특허 서지정보를 조회하고 있습니다..."}
                     {loadingStep === "kipris-family" && "KIPRIS에서 해외 패밀리특허를 검색하고 있습니다..."}
                     {loadingStep === "merge" && "모든 데이터를 병합하고 있습니다..."}
                   </div>
@@ -1695,27 +1751,21 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* 추출된 도면 */}
+                        {/* 도면 */}
                         {smkData.figures && smkData.figures.length > 0 && (
                           <div className="smk-field">
-                            <label>대표 도면 (PDF 자동 추출)</label>
+                            <label>도면</label>
                             <div className="figures-grid" style={{ marginTop: 8 }}>
                               {smkData.figures.map((fig, i) => (
                                 <div key={i} className="figure-card">
-                                  <div className="figure-thumb" style={fig.imageUrl ? {
-                                    backgroundImage: `url(${fig.imageUrl})`,
-                                    backgroundSize: "contain",
-                                    backgroundRepeat: "no-repeat",
-                                    backgroundPosition: "center",
-                                    backgroundColor: "#fff",
-                                    height: 160
-                                  } : {}}>
-                                    {!fig.imageUrl && "📄"}
-                                  </div>
+                                  {fig.imageUrl && (
+                                    <div className="figure-thumb">
+                                      <img src={fig.imageUrl} alt={fig.title} onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                                    </div>
+                                  )}
                                   <div className="figure-info">
                                     <div className="figure-title">{fig.title}</div>
-                                    <div className="figure-desc">{fig.desc}</div>
-                                    {fig.page && <div style={{ fontSize: 10, color: "var(--text-light)", marginTop: 3 }}>p.{fig.page}</div>}
+                                    {fig.desc && <div className="figure-desc">{fig.desc}</div>}
                                   </div>
                                 </div>
                               ))}
@@ -1818,8 +1868,8 @@ export default function App() {
                         {pdfUrl ? (
                           <iframe src={pdfUrl} className="pdf-viewer" title="Patent PDF" />
                         ) : (
-                          <div className="pdf-viewer" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-light)" }}>
-                            PDF 파일이 없습니다.
+                          <div className="pdf-viewer" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-light)", fontSize: 13 }}>
+                            전문 PDF가 없습니다. 공개 또는 등록되지 않은 출원일 수 있습니다.
                           </div>
                         )}
                       </div>
@@ -1962,24 +2012,19 @@ export default function App() {
                 {selectedPatent.figures && selectedPatent.figures.length > 0 && (
                   <div className="figures-section">
                     <h4 style={{ fontSize: 12, fontWeight: 700, color: "var(--text-light)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-                      대표 도면
+                      도면
                     </h4>
                     <div className="figures-grid">
                       {selectedPatent.figures.map((fig, i) => (
                         <div key={i} className="figure-card">
-                          <div className="figure-thumb" style={fig.imageUrl ? {
-                            backgroundImage: `url(${fig.imageUrl})`,
-                            backgroundSize: "contain",
-                            backgroundRepeat: "no-repeat",
-                            backgroundPosition: "center",
-                            backgroundColor: "#fff",
-                            height: 140
-                          } : {}}>
-                            {!fig.imageUrl && (fig.icon || "📄")}
-                          </div>
+                          {fig.imageUrl && (
+                            <div className="figure-thumb">
+                              <img src={fig.imageUrl} alt={fig.title} onError={(e) => { e.target.parentElement.style.display = "none"; }} />
+                            </div>
+                          )}
                           <div className="figure-info">
                             <div className="figure-title">{fig.title}</div>
-                            <div className="figure-desc">{fig.desc}</div>
+                            {fig.desc && <div className="figure-desc">{fig.desc}</div>}
                           </div>
                         </div>
                       ))}
