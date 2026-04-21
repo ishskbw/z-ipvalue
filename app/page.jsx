@@ -1829,15 +1829,31 @@ export default function App() {
                       <div>
                         {smkData?.fullTextXml ? (
                           <div style={{
-                            maxHeight: 500, overflowY: "auto", padding: "20px",
+                            maxHeight: 500, overflowY: "auto", padding: "20px 24px",
                             border: "1px solid var(--border)", background: "var(--white)",
-                            fontSize: 13, lineHeight: 1.8, color: "var(--text-mid)",
-                            fontFamily: "'Noto Sans KR', sans-serif", whiteSpace: "pre-wrap", wordBreak: "break-all"
+                            fontSize: 13, lineHeight: 1.9, color: "var(--text-mid)",
+                            fontFamily: "'Noto Sans KR', sans-serif"
                           }}>
-                            {smkData.fullTextXml
-                              .replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
-                              .replace(/<[^>]+>/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
-                            }
+                            {smkData.fullTextXml.split('\n').map((line, i) => {
+                              const trimmed = line.trim();
+                              if (!trimmed) return <br key={i} />;
+                              // 섹션 제목 (기술분야, 발명의 내용, 도면의 간단한 설명, 청구항 등)
+                              const isSection = /^(\[|【)?.*(기술\s*분야|배경\s*기술|발명의\s*(내용|배경)|해결하려는\s*과제|과제의\s*해결|발명의\s*효과|도면의\s*간단한\s*설명|발명을\s*실시하기|실시예|청구의\s*범위|산업상\s*이용)/.test(trimmed);
+                              const isFigRef = /^\[?\s*도\s*\d+/.test(trimmed);
+                              const isClaim = /^\[?\s*청구항\s*\d+/.test(trimmed);
+                              if (isSection) return (
+                                <div key={i} style={{ fontWeight: 700, color: "var(--dark)", fontSize: 14, marginTop: 18, marginBottom: 6, borderBottom: "1px solid var(--border)", paddingBottom: 4 }}>
+                                  {trimmed}
+                                </div>
+                              );
+                              if (isFigRef) return (
+                                <div key={i} style={{ color: "#6B1D2E", fontWeight: 600, marginTop: 4 }}>{trimmed}</div>
+                              );
+                              if (isClaim) return (
+                                <div key={i} style={{ fontWeight: 600, color: "var(--dark)", marginTop: 10 }}>{trimmed}</div>
+                              );
+                              return <p key={i} style={{ margin: "2px 0" }}>{trimmed}</p>;
+                            })}
                           </div>
                         ) : pdfUrl ? (
                           <iframe src={pdfUrl} className="pdf-viewer" title="Patent PDF" />
