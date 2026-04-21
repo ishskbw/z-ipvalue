@@ -547,6 +547,40 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ─── 브라우저 뒤로가기 지원 ───────────────
+  // 모달/페이지가 열릴 때 history에 push, 뒤로가기 시 닫도록 처리
+  useEffect(() => {
+    if (!selectedPatent) return;
+    window.history.pushState({ z: "detail" }, "");
+    const onPop = () => setSelectedPatent(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [selectedPatent]);
+
+  useEffect(() => {
+    if (!categoryConfirm) return;
+    window.history.pushState({ z: "catConfirm" }, "");
+    const onPop = () => setCategoryConfirm(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [categoryConfirm]);
+
+  useEffect(() => {
+    if (!adminModal) return;
+    window.history.pushState({ z: "admin" }, "");
+    const onPop = () => setAdminModal(false);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [adminModal]);
+
+  useEffect(() => {
+    if (page === "browse") return;
+    window.history.pushState({ z: "page", page }, "");
+    const onPop = () => setPage("browse");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [page]);
+
   // Upload state
   const [uploadedFile, setUploadedFile] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
