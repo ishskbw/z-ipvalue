@@ -1,5 +1,5 @@
 // /app/api/kipris/search/route.js
-// KIPRIS Plus REST API + Claude SMK
+// KIPRIS Plus REST API + 전문 XML 파싱 + Claude SMK
 
 export async function POST(request) {
   const body = await request.json();
@@ -11,7 +11,7 @@ export async function POST(request) {
   if (!kiprisKey) return Response.json({ error: 'KIPRIS API key not configured' }, { status: 500 });
 
   const cleanNo = patentNo.replace(/[^0-9]/g, '');
-  const result = { bib: null, family: [], smk: null, error: null, pdfUrls: {}, debug: {} };
+  const result = { bib: null, family: [], smk: null, error: null, pdfUrls: {}, fullTextXml: null, figureDescsFromXml: [], debug: {} };
 
   const ext = (xml, tag) => {
     const re = new RegExp(`<${tag}><!\\[CDATA\\[([\\s\\S]*?)\\]\\]></${tag}>|<${tag}>([\\s\\S]*?)</${tag}>`);
@@ -40,7 +40,7 @@ export async function POST(request) {
 
     const total = ext(xml1, 'TotalSearchCount');
     if (!total || total === '0') {
-      result.bib = { title: '검색 결과 없음', applicationNumber: cleanNo, rawXml: xml1.substring(0, 2000) };
+      result.bib = { title: '검색 결과 없음', applicationNumber: cleanNo };
       return Response.json(result);
     }
 
@@ -59,7 +59,6 @@ export async function POST(request) {
       openNumber: ext(xml1, 'OpeningNumber'),
       openDate: ext(xml1, 'OpeningDate'),
       bigDrawing: ext(xml1, 'DrawingPath') || ext(xml1, 'ThumbnailPath'),
-      rawXml: xml1.substring(0, 3000),
     };
 
     // ── Step 2: 초록 상세 ──
@@ -72,7 +71,7 @@ export async function POST(request) {
       } catch(e) {}
     }
 
-    // ── Step 3: 발명자 (InventorName 태그) ──
+    // ── Step 3: 발명자 ──
     try {
       const r = await fetch(`${base}/patentInventorInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
       const x = await r.text();
@@ -105,43 +104,63 @@ export async function POST(request) {
       }
     } catch(e) {}
 
-    // ── Step 6: 전문 PDF URL (patentFullTextFileInfo) ──
+    // ── Step 6: 전문 XML 다운로드 + 도면 설명 추출 ──
     try {
       const r = await fetch(`${base}/patentFullTextFileInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
       const x = await r.text();
-      result.debug.pdfFileInfo = x.substring(0, 800);
       const paths = extAll(x, 'path');
-      const docNames = extAll(x, 'docName');
-      for (let i = 0; i < paths.length; i++) {
-        const name = (docNames[i] || '').toLowerCase();
-        if (name.includes('공고') || name.includes('등록') || name.includes('ann')) {
-          result.pdfUrls.ann = paths[i];
-        } else if (name.includes('공개') || name.includes('pub')) {
-          result.pdfUrls.pub = paths[i];
-        } else if (!result.pdfUrls.main) {
-          result.pdfUrls.main = paths[i];
-        }
-      }
-      // If no specific match, use first available
-      if (!result.pdfUrls.ann && !result.pdfUrls.pub && paths.length > 0) {
+      
+      if (paths.length > 0) {
         result.pdfUrls.main = paths[0];
+        
+        // XML 전문 다운로드하여 도면 설명 추출
+        try {
+          const xmlRes = await fetch(paths[0]);
+          const fullXml = await xmlRes.text();
+          
+          // "도면의 간단한 설명" 섹션 추출 시도
+          const figSectionMatch = fullXml.match(/도면의\s*간단한\s*설명[\s\S]*?(?=<\/|발명을\s*실시하기)/i);
+          if (figSectionMatch) {
+            const figSection = figSectionMatch[0];
+            // [도 1], [도1], 도 1:, 【도 1】 등 다양한 패턴 매칭
+            const figMatches = [...figSection.matchAll(/(?:\[도\s*(\d+[a-z]?)\]|【도\s*(\d+[a-z]?)】|도\s*(\d+[a-z]?)\s*[:\-은는이가을를])\s*([^\[【\n]+)/g)];
+            for (const fm of figMatches) {
+              const no = fm[1] || fm[2] || fm[3];
+              const desc = (fm[4] || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+              if (no && desc) {
+                result.figureDescsFromXml.push({ no: `도 ${no}`, desc });
+              }
+            }
+          }
+
+          // 전문 텍스트에서 도면 설명이 못 추출되면 CDATA 패턴 시도
+          if (result.figureDescsFromXml.length === 0) {
+            const figMatches2 = [...fullXml.matchAll(/(?:도\s*(\d+[a-z]?))\s*[:\-은는이가을를]\s*([^<\n]{5,80})/g)];
+            const seen = new Set();
+            for (const fm of figMatches2) {
+              if (!seen.has(fm[1])) {
+                seen.add(fm[1]);
+                const desc = fm[2].replace(/\s+/g, ' ').trim();
+                result.figureDescsFromXml.push({ no: `도 ${fm[1]}`, desc });
+              }
+            }
+          }
+
+          // 전문 텍스트 요약 (처음 5000자) — 프론트에서 뷰어로 사용
+          result.fullTextXml = fullXml.substring(0, 30000);
+        } catch(e) { result.debug.xmlDownloadErr = String(e); }
       }
     } catch(e) { result.debug.pdfErr = String(e); }
 
-    // Fallback: try patentFullTextCheckInfo to see what's available
-    if (!result.pdfUrls.ann && !result.pdfUrls.pub && !result.pdfUrls.main) {
-      try {
-        const r = await fetch(`${base}/patentFullTextCheckInfo?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
-        const x = await r.text();
-        result.debug.pdfCheck = x.substring(0, 500);
-      } catch(e) {}
-    }
-
-    // ── Step 7: Claude SMK + 도면 설명 ──
+    // ── Step 7: Claude SMK ──
     if (anthropicKey && result.bib.title && result.bib.title !== '검색 결과 없음') {
       try {
+        // 도면 설명을 프롬프트에 포함
+        const figInfo = result.figureDescsFromXml.length > 0
+          ? '\n[도면 설명]\n' + result.figureDescsFromXml.map(f => `${f.no}: ${f.desc}`).join('\n')
+          : '';
+
         const prompt = `다음 특허 정보를 바탕으로 SMK(기술이전 마케팅 시트)를 작성하세요.
-초록에서 도면 번호(도 1, 도 2 등)가 언급되면, 각 도면의 설명도 작성하세요.
 
 [특허] ${result.bib.title}
 [출원번호] ${result.bib.applicationNumber}
@@ -149,10 +168,10 @@ export async function POST(request) {
 [출원인] ${result.bib.applicantName}
 [발명자] ${result.bib.inventorName}
 [IPC] ${result.bib.ipcNumber}
-[초록] ${result.bib.abstract}
+[초록] ${result.bib.abstract}${figInfo}
 
 JSON만 응답하세요:
-{"field":"기술 분야","trl":숫자(1-9),"summary":"기술 개요 2-3문장","core":"핵심 기술 내용 3-4문장","advantage":"특징 및 장점","application":"활용 분야","effect":"기대 효과","keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"],"figureDescs":[{"no":"도 1","title":"도면 제목","desc":"도면 설명"}]}`;
+{"field":"기술 분야","trl":숫자(1-9),"summary":"기술 개요 2-3문장","core":"핵심 기술 내용 3-4문장","advantage":"특징 및 장점","application":"활용 분야","effect":"기대 효과","keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"],"figureDescs":[{"no":"도 1","title":"짧은 제목","desc":"도면 설명 1줄"}]}`;
 
         const cr = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
