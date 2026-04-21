@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
 const CATEGORIES = ['AI/SW', '바이오', '소재', '에너지', '전자', '환경'];
-const DEAL_TYPES = ['라이선스', '매각'];
+const DEAL_TYPES = ['라이선스/매각', '라이선스', '매각'];
 const STATUSES = ['공개', '협의중', '완료'];
 const EXAM_STATUSES = ['심사중', '등록완료'];
 
@@ -216,7 +216,7 @@ function Badge({ status }) {
 function PatentForm({ patent, onClose }) {
   const [form, setForm] = useState(patent || {
     title: '', description: '', detail: '',
-    category: 'AI/SW', deal_type: '라이선스', status: '공개',
+    category: 'AI/SW', deal_type: '라이선스/매각', status: '공개',
     trl_level: null, application_date: '', application_no: '', registration_no: '',
     examination_status: '', foreign_countries: [], tags: [],
     holder: '', inventor: '', price_display: '', contact_email: '',
