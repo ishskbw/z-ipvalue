@@ -921,7 +921,7 @@ export default function App() {
         `${inquiryForm.message}`,
         ``,
         `---`,
-        `Zenith Value (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
+        `Zenithvalue (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
       ].join("\n");
     } else {
       body = [
@@ -939,7 +939,7 @@ export default function App() {
         `해당 기술의 이전 상담을 요청합니다.`,
         ``,
         `---`,
-        `Zenith Value (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
+        `Zenithvalue (z-ipvalue.com) 기술이전 플랫폼에서 발송됨`,
       ].join("\n");
     }
 
@@ -1303,8 +1303,8 @@ export default function App() {
         <header className="header">
           <div className="header-left">
             <div className="logo-area" onClick={() => setPage("browse")}>
-              <div className="logo-text"><span className="logo-z">Z</span>enith Value</div>
-              <div className="logo-sub">주식회사 제니스밸류</div>
+              <div className="logo-text"><span className="logo-z">Z</span>enithvalue</div>
+              <div className="logo-sub">제니스특허법률사무소 운영</div>
             </div>
             <nav className="nav">
               <button className={`nav-btn ${page === "browse" ? "active" : ""}`} onClick={() => setPage("browse")}>기술 찾기</button>
@@ -1326,11 +1326,11 @@ export default function App() {
         {page === "browse" && (
           <section className="hero">
             <div className="hero-content">
-              <div className="hero-firm">주식회사 제니스밸류 · Technology Transfer</div>
+              <div className="hero-firm">제니스특허법률사무소 · Technology Transfer</div>
               <h1>대학·연구소 <span>특허 기술</span>을<br/>기업과 연결합니다</h1>
               <p className="hero-desc">
-                주식회사 제니스밸류가 운영하는 IP 기술이전 플랫폼입니다.
-                대학·연구소의 우수 특허를 기업에 소개하고, 제니스특허법률사무소와 함께 기술 매입·라이선스 상담을 지원합니다.
+                제니스특허법률사무소에 의해 운영되는 IP 기술이전 플랫폼입니다.
+                대학·연구소의 우수 특허를 기업에 소개하고, 기술 매입·라이선스 상담을 지원합니다.
               </p>
               <div className="stats-row">
                 <div className="stat-card"><div className="stat-num">{patents.length}</div><div className="stat-label">등록 기술</div></div>
@@ -1758,7 +1758,7 @@ export default function App() {
                   <div className="smk-card">
                     <div className="smk-header">
                       <h3>SMK 자동 생성 결과</h3>
-                      <span>주식회사 제니스밸류{smkData.kiprisLinked ? " · KIPRIS 연동" : ""}</span>
+                      <span>제니스특허법률사무소{smkData.kiprisLinked ? " · KIPRIS 연동" : ""}</span>
                     </div>
                     <div className="smk-tabs">
                       <button className={`smk-tab ${smkTab === "smk" ? "active" : ""}`} onClick={() => setSmkTab("smk")}>
@@ -1956,7 +1956,7 @@ export default function App() {
           {page === "process" && (
             <div className="process-page">
               <h2>기술이전 거래 절차</h2>
-              <p className="page-desc">주식회사 제니스밸류와 제니스특허법률사무소가 전 과정을 지원합니다. 각 단계별 역할을 확인하세요.</p>
+              <p className="page-desc">제니스특허법률사무소가 전 과정을 지원합니다. 각 단계별 역할을 확인하세요.</p>
 
               <div className="process-timeline">
                 <div className="process-line" />
@@ -2009,16 +2009,16 @@ export default function App() {
         <footer className="footer">
           <div className="footer-content">
             <div className="footer-left">
-              <div className="footer-name">Zenith Value</div>
+              <div className="footer-name">Zenithvalue</div>
               <div className="footer-info">
-                주식회사 제니스밸류 · IP 기술이전 플랫폼<br/>
+                제니스특허법률사무소 운영 · IP 기술이전 플랫폼<br/>
                 <a href="https://z-ipvalue.com" target="_blank" rel="noopener">z-ipvalue.com</a>
                 <span style={{ margin: "0 6px", color: "var(--text-lighter)" }}>·</span>
                 법률 지원: <a href="https://ipzenith.com" target="_blank" rel="noopener">제니스특허법률사무소 (ipzenith.com)</a>
               </div>
             </div>
             <div className="footer-right">
-              © 2026 Zenith Value Co., Ltd.
+              © 2026 Zenithvalue
             </div>
           </div>
         </footer>
@@ -2223,7 +2223,7 @@ export default function App() {
                 {role === "buyer" && (
                   <div className="inquiry-form">
                     <h3>매입 의사 타진 · 기술이전 문의</h3>
-                    <p className="form-sub">작성 후 접수하면 주식회사 제니스밸류({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
+                    <p className="form-sub">작성 후 접수하면 제니스특허법률사무소({FIRM_EMAIL})로 이메일이 발송됩니다.</p>
                     <div className="form-row">
                       <div className="form-field">
                         <label>회사명</label>
@@ -2273,7 +2273,7 @@ export default function App() {
                       이 기술의 이전 상담을 받고 싶으시면 아래 버튼을 클릭하세요.
                     </p>
                     <p style={{ fontSize: 12, color: "var(--text-light)", marginBottom: 14 }}>
-                      주식회사 제니스밸류({FIRM_EMAIL})로 상담 신청 이메일이 작성됩니다.
+                      제니스특허법률사무소({FIRM_EMAIL})로 상담 신청 이메일이 작성됩니다.
                     </p>
                     <button className="form-submit" style={{ maxWidth: 320, margin: "0 auto" }}
                       onClick={() => sendInquiryEmail("holder")}>
