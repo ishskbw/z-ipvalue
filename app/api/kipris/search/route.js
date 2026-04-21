@@ -15,40 +15,45 @@ export async function POST(request) {
   const result = { bib: null, family: [], smk: null, error: null };
 
   try {
-    // ── Step 1: KIPRIS 서지정보 조회 ──
+    // ── Step 1: KIPRIS 서지정보 조회 (getAdvancedSearch) ──
     const paramName = searchType === 'application' ? 'applicationNumber'
       : searchType === 'publication' ? 'openNumber' : 'registerNumber';
     
-    const bibUrl = `http://plus.kipris.or.kr/openapi/rest/patUtiModInfoSearchSevice/getBibliographyDetailInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&${paramName}=${cleanNo}`;
+    // KIPRIS Plus REST API - 특허·실용 공개·등록공보 항목별 검색
+    const bibUrl = `http://plus.kipris.or.kr/openapi/rest/patUtiModInfoSearchSevice/getAdvancedSearch?accessKey=${encodeURIComponent(kiprisKey)}&${paramName}=${cleanNo}&numOfRows=1&pageNo=1`;
+    
+    console.log('KIPRIS bib URL:', bibUrl.replace(kiprisKey, '***'));
     
     const bibRes = await fetch(bibUrl);
     const bibXml = await bibRes.text();
     
+    console.log('KIPRIS bib response (first 500 chars):', bibXml.substring(0, 500));
+    
     // Parse XML server-side
     const extract = (xml, tag) => {
-      const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
+      const match = xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
       return match ? match[1].trim() : null;
     };
     const extractAll = (xml, tag) => {
-      const matches = [...xml.matchAll(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'g'))];
+      const matches = [...xml.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))];
       return matches.map(m => m[1].trim());
     };
 
     result.bib = {
-      title: extract(bibXml, 'inventionTitle') || extract(bibXml, 'inventionTitleKorean') || extract(bibXml, 'title') || '',
+      title: extract(bibXml, 'inventionTitle') || extract(bibXml, 'title') || extract(bibXml, 'inventionTitleKorean') || '',
       applicationNumber: extract(bibXml, 'applicationNumber') || cleanNo,
-      applicationDate: extract(bibXml, 'applicationDate') || '',
-      inventorName: extract(bibXml, 'inventorName') || extractAll(bibXml, 'inventorName').join(', ') || '',
-      applicantName: extract(bibXml, 'applicantName') || extractAll(bibXml, 'applicantName').join(', ') || '',
-      abstract: extract(bibXml, 'astrtCont') || extract(bibXml, 'abstract') || '',
-      ipcNumber: extract(bibXml, 'ipcNumber') || '',
-      registerStatus: extract(bibXml, 'registerStatus') || extract(bibXml, 'registrationStatus') || '',
-      registerNumber: extract(bibXml, 'registerNumber') || '',
-      registerDate: extract(bibXml, 'registerDate') || '',
-      openNumber: extract(bibXml, 'openNumber') || '',
-      openDate: extract(bibXml, 'openDate') || '',
-      bigDrawing: extract(bibXml, 'bigDrawing') || extract(bibXml, 'drawing') || '',
-      rawXml: bibXml.substring(0, 3000), // For debugging (first 3000 chars)
+      applicationDate: extract(bibXml, 'applicationDate') || extract(bibXml, 'applDate') || '',
+      inventorName: extract(bibXml, 'inventorName') || extractAll(bibXml, 'inventorName').join(', ') || extract(bibXml, 'inventor') || '',
+      applicantName: extract(bibXml, 'applicantName') || extractAll(bibXml, 'applicantName').join(', ') || extract(bibXml, 'applicant') || '',
+      abstract: extract(bibXml, 'astrtCont') || extract(bibXml, 'abstract') || extract(bibXml, 'abstractSummary') || '',
+      ipcNumber: extract(bibXml, 'ipcNumber') || extract(bibXml, 'ipcCode') || '',
+      registerStatus: extract(bibXml, 'registerStatus') || extract(bibXml, 'registrationStatus') || extract(bibXml, 'detailedRegistrationStatus') || extract(bibXml, 'registerStatusCode') || '',
+      registerNumber: extract(bibXml, 'registerNumber') || extract(bibXml, 'registrationNumber') || '',
+      registerDate: extract(bibXml, 'registerDate') || extract(bibXml, 'registrationDate') || '',
+      openNumber: extract(bibXml, 'openNumber') || extract(bibXml, 'publicationNumber') || extract(bibXml, 'openNum') || '',
+      openDate: extract(bibXml, 'openDate') || extract(bibXml, 'publicationDate') || '',
+      bigDrawing: extract(bibXml, 'bigDrawing') || extract(bibXml, 'drawing') || extract(bibXml, 'largeDrawing') || extract(bibXml, 'drawingPath') || '',
+      rawXml: bibXml.substring(0, 5000),
     };
 
     // ── Step 2: KIPRIS 패밀리 조회 ──
