@@ -103,22 +103,44 @@ export async function POST(request) {
       }
     } catch(e) {}
 
-    // ── Step 5: Claude SMK ──
+    // ── Step 6: 전문 PDF URL 조회 ──
+    result.pdfUrls = {};
+    try {
+      // 공고전문PDF (등록공보) 우선 조회
+      const r1 = await fetch(`${base}/getAnnFullTextInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
+      const x1 = await r1.text();
+      const annPath = ext(x1, 'path');
+      if (annPath) result.pdfUrls.ann = annPath;
+    } catch(e) {}
+    try {
+      // 공개전문PDF
+      const r2 = await fetch(`${base}/getPubFullTextInfoSearch?accessKey=${encodeURIComponent(kiprisKey)}&applicationNumber=${appNum}`);
+      const x2 = await r2.text();
+      const pubPath = ext(x2, 'path');
+      if (pubPath) result.pdfUrls.pub = pubPath;
+    } catch(e) {}
+
+    // ── Step 7: Claude SMK + 도면 설명 ──
     if (anthropicKey && result.bib.title && result.bib.title !== '검색 결과 없음') {
       try {
-        const prompt = `다음 특허 정보를 바탕으로 SMK를 작성하세요. JSON만 응답하세요.
+        const prompt = `다음 특허 정보를 바탕으로 SMK(기술이전 마케팅 시트)를 작성하세요.
+초록에서 도면 번호(도 1, 도 2 등)가 언급되면, 각 도면의 설명도 작성하세요.
+
 [특허] ${result.bib.title}
 [출원번호] ${result.bib.applicationNumber}
 [출원일] ${result.bib.applicationDate}
 [출원인] ${result.bib.applicantName}
+[발명자] ${result.bib.inventorName}
 [IPC] ${result.bib.ipcNumber}
 [초록] ${result.bib.abstract}
-{"field":"기술분야","trl":숫자,"summary":"개요","core":"핵심기술","advantage":"장점","application":"활용분야","effect":"효과","keywords":["kw1","kw2","kw3","kw4","kw5"]}`;
+
+JSON만 응답하세요:
+{"field":"기술 분야","trl":숫자(1-9),"summary":"기술 개요 2-3문장","core":"핵심 기술 내용 3-4문장","advantage":"특징 및 장점","application":"활용 분야","effect":"기대 효과","keywords":["키워드1","키워드2","키워드3","키워드4","키워드5"],"figureDescs":[{"no":"도 1","title":"도면 제목","desc":"도면 설명"}]}`;
 
         const cr = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
+          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }),
         });
         const cd = await cr.json();
         const t = (cd.content?.map(i => i.text || '').join('\n') || '').replace(/```json|```/g, '').trim();
