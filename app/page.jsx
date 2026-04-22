@@ -1354,7 +1354,7 @@ function AppContent() {
                 <div>
                   <h2>특허 등록 · SMK 생성</h2>
                   <p className="page-desc">
-                    번호 입력 또는 PDF 업로드로 특허 정보를 가져오고 AI가 SMK를 자동 생성합니다.
+                    등록을 원하시는 특허 번호를 입력하시면, 제니스 담당자가 검토 후 플랫폼에 게시합니다.
                   </p>
                 </div>
                 {!adminAuth && (
@@ -1589,7 +1589,7 @@ function AppContent() {
                   </div>
                   <div style={{ textAlign: "center", fontSize: 13, color: "var(--text-mid)" }}>
                     {loadingStep === "ai" && "Claude AI가 명세서를 분석하여 SMK를 작성 중입니다..."}
-                    {loadingStep === "figures" && "전문 PDF에서 도면을 추출하고 있습니다..."}
+                    {loadingStep === "figures" && "KIPRIS 전문에서 도면 정보를 추출하고 있습니다..."}
                     {loadingStep === "kipris-bib" && "KIPRIS에서 특허 서지정보를 조회하고 있습니다..."}
                     {loadingStep === "kipris-family" && "KIPRIS에서 해외 패밀리특허를 검색하고 있습니다..."}
                     {loadingStep === "merge" && "모든 데이터를 병합하고 있습니다..."}
@@ -1748,7 +1748,7 @@ function AppContent() {
                             padding: 14, fontSize: 12, color: "#6B1D2E", lineHeight: 1.6
                           }}>
                             💡 KIPRIS API 키가 입력되지 않아 심사현황·해외출원 조회를 건너뛰었습니다.
-                            상단에 data.go.kr 인증키를 입력 후 다시 업로드하면 자동으로 연동됩니다.
+                            상단에 data.go.kr 인증키를 입력 후 다시 조회하면 자동으로 연동됩니다.
                           </div>
                         )}
                       </div>
@@ -1832,7 +1832,7 @@ function AppContent() {
                 {[
                   {
                     num: 1, title: "기술 등록", color: "#6B1D2E",
-                    desc: "대학·연구소가 특허 명세서를 업로드하면, AI가 SMK를 자동 생성합니다. 변리사가 검토 후 플랫폼에 게시합니다.",
+                    desc: "등록을 원하시는 특허 번호를 입력하시면, 제니스 담당자가 검토 후 플랫폼에 게시합니다.",
                     roles: [{ label: "보유자", cls: "role-holder" }, { label: "변리사", cls: "role-attorney" }]
                   },
                   {
