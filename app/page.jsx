@@ -338,15 +338,6 @@ body { font-family:'Sora','Noto Sans KR',sans-serif; background:var(--ivory); co
 .upload-page { max-width:800px; margin:0 auto; }
 .upload-page h2 { font-family:'DM Serif Display',serif; font-size:32px; font-weight:400; margin-bottom:6px; color:var(--dark); }
 .upload-page .page-desc { color:var(--text-mid); font-size:14px; margin-bottom:28px; }
-.drop-zone {
-  border:2px dashed var(--border); padding:48px; text-align:center;
-  background:var(--white); transition:all .3s; cursor:pointer;
-}
-.drop-zone.dragover { border-color:var(--oxblood); background:rgba(107,29,46,.02); }
-.drop-zone-icon { font-size:48px; margin-bottom:12px; }
-.drop-zone h3 { font-family:'DM Serif Display',serif; font-size:18px; font-weight:400; margin-bottom:6px; }
-.drop-zone p { font-size:13px; color:var(--text-light); }
-
 .smk-result { margin-top:28px; }
 .smk-card { background:var(--white); border:1px solid var(--border); overflow:hidden; }
 .smk-header {
@@ -597,16 +588,13 @@ function AppContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Upload state
-  const [uploadedFile, setUploadedFile] = useState(null);
+  // Search state
   const [pdfUrl, setPdfUrl] = useState(null);
   const [smkData, setSmkData] = useState(null);
   const [smkLoading, setSmkLoading] = useState(false);
   const [smkTab, setSmkTab] = useState("smk");
-  const [dragOver, setDragOver] = useState(false);
   const [kiprisKey, setKiprisKey] = useState("");
   const [loadingStep, setLoadingStep] = useState("");
-  const [uploadMode, setUploadMode] = useState("number"); // "pdf" or "number"
   const [patentInput, setPatentInput] = useState("");
   const [patentInputType, setPatentInputType] = useState("application");
   const [kiprisKeySaved, setKiprisKeySaved] = useState(false);
@@ -623,8 +611,6 @@ function AppContent() {
   const [resetStep, setResetStep] = useState(0); // 0=hidden, 1=confirm, 2=final
   const [inquiryForm, setInquiryForm] = useState({ company: "", name: "", contact: "", dealType: "", message: "" });
   const FIRM_EMAIL = "zenith@ipzenith.com";
-  const fileInputRef = useRef(null);
-  const pdfjsRef = useRef(null);
 
   // 모달(categoryConfirm, adminModal)의 뒤로가기 지원 — 페이지/patent는 URL로 해결됨
   useEffect(() => {
@@ -819,47 +805,6 @@ function AppContent() {
     showToast("전체 초기화 완료. 비밀번호와 API 키를 다시 설정하세요.");
   };
 
-  // Load PDF.js from CDN
-  useEffect(() => {
-    if (pdfjsRef.current) return;
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    script.onload = () => {
-      const pdfjsLib = window["pdfjs-dist/build/pdf"];
-      if (pdfjsLib) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-        pdfjsRef.current = pdfjsLib;
-      }
-    };
-    document.head.appendChild(script);
-  }, []);
-
-  // Render specific PDF pages as data URL thumbnails
-  const renderPdfPages = async (arrayBuffer, pageNumbers, thumbHeight = 280) => {
-    const pdfjsLib = pdfjsRef.current;
-    if (!pdfjsLib) return [];
-    try {
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const results = [];
-      for (const pn of pageNumbers) {
-        if (pn < 1 || pn > pdf.numPages) continue;
-        try {
-          const pg = await pdf.getPage(pn);
-          const vp = pg.getViewport({ scale: 1 });
-          const scale = thumbHeight / vp.height;
-          const scaledVp = pg.getViewport({ scale });
-          const canvas = document.createElement("canvas");
-          canvas.width = scaledVp.width;
-          canvas.height = scaledVp.height;
-          const ctx = canvas.getContext("2d");
-          await pg.render({ canvasContext: ctx, viewport: scaledVp }).promise;
-          results.push({ page: pn, dataUrl: canvas.toDataURL("image/png") });
-        } catch (e) { console.warn(`Page ${pn} render error`, e); }
-      }
-      return results;
-    } catch (e) { console.error("PDF render error", e); return []; }
-  };
-
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -980,7 +925,6 @@ function AppContent() {
     setCategoryConfirm(null);
     await loadPatentsFromSupabase();
     setSmkData(null);
-    setUploadedFile(null);
     setPdfUrl(null);
     setPatentInput("");
     setTimeout(() => setPage("browse"), 800);
@@ -1123,168 +1067,6 @@ function AppContent() {
     return true;
   });
 
-  // PDF upload handler — multi-step: PDF pages → Claude → Figures → KIPRIS → merge
-  const handleFile = async (file) => {
-    if (!file || file.type !== "application/pdf") {
-      showToast("PDF 파일만 업로드 가능합니다.");
-      return;
-    }
-    setUploadedFile(file);
-    setPdfUrl(URL.createObjectURL(file));
-    setSmkTab("smk");
-    setSmkLoading(true);
-    setSmkData(null);
-    setLoadingStep("pdf");
-
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result.split(",")[1];
-        const arrayBuffer = e.target.result;
-        // Also get ArrayBuffer for PDF.js rendering
-        const abReader = new FileReader();
-        const abPromise = new Promise((resolve) => {
-          abReader.onload = (ev) => resolve(ev.target.result);
-          abReader.readAsArrayBuffer(file);
-        });
-        const pdfArrayBuffer = await abPromise;
-
-        let parsed = null;
-
-        // ── Step 1: Claude AI로 명세서 분석 + 도면 페이지 식별 ──
-        setLoadingStep("ai");
-        try {
-          const response = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "claude-sonnet-4-20250514",
-              max_tokens: 1500,
-              messages: [{
-                role: "user",
-                content: [
-                  {
-                    type: "document",
-                    source: { type: "base64", media_type: "application/pdf", data: base64 }
-                  },
-                  {
-                    type: "text",
-                    text: `이 특허 명세서를 분석하여 SMK(기술이전 마케팅 시트)를 작성해주세요. 
-
-도면(Figure) 정보도 반드시 포함해주세요:
-- PDF에서 도면이 있는 페이지 번호를 찾아주세요
-- 각 도면의 제목과 간단한 설명을 작성해주세요
-- 대표 도면 2~4개를 선별해주세요
-
-반드시 아래 JSON 형식으로만 응답하고, 다른 텍스트는 포함하지 마세요.
-{
-  "title": "기술명",
-  "field": "다음 중 하나만 선택: 제약, 바이오, 진단, 화장료, 식품, 소재, 에너지, 환경, AI/SW, 전자",
-  "trl": 숫자(1-9),
-  "patentNo": "출원번호 (10-YYYY-NNNNNNN 형식)",
-  "filingDate": "출원일 (YYYY.MM.DD)",
-  "inventor": "발명자",
-  "org": "출원기관/출원인",
-  "summary": "기술 개요 (2-3문장)",
-  "core": "핵심 기술 내용 (3-4문장)",
-  "advantage": "특징 및 장점 (3-4개 항목)",
-  "application": "활용 분야 (3-4개)",
-  "effect": "기대 효과 (2-3문장)",
-  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5"],
-  "figures": [
-    { "page": 페이지번호, "title": "[도 N] 도면 제목", "desc": "도면에 대한 간단한 설명" }
-  ]
-}`
-                  }
-                ]
-              }]
-            })
-          });
-          const data = await response.json();
-          const text = data.content?.map(i => i.text || "").join("\n") || "";
-          const clean = text.replace(/```json|```/g, "").trim();
-          parsed = JSON.parse(clean);
-        } catch (err) {
-          console.error("Claude SMK error:", err);
-          parsed = {
-            title: file.name.replace(".pdf", ""),
-            field: "분석 필요", trl: 5, patentNo: "-", filingDate: "-",
-            inventor: "-", org: "-",
-            summary: "Claude API 연동 확인 필요. 실제 환경에서는 명세서가 자동 분석됩니다.",
-            core: "-", advantage: "-", application: "-", effect: "-",
-            keywords: ["AI분석", "SMK", "자동생성"],
-            figures: []
-          };
-        }
-
-        // ── Step 2: PDF.js로 도면 페이지 렌더링 ──
-        let figuresWithImages = parsed.figures || [];
-        if (figuresWithImages.length > 0 && pdfjsRef.current) {
-          setLoadingStep("figures");
-          const pageNums = figuresWithImages.map(f => f.page).filter(Boolean);
-          const renderedPages = await renderPdfPages(pdfArrayBuffer, pageNums);
-          figuresWithImages = figuresWithImages.map(fig => {
-            const rendered = renderedPages.find(r => r.page === fig.page);
-            return { ...fig, imageUrl: rendered?.dataUrl || null };
-          });
-        }
-
-        // ── Step 2: KIPRIS 서지정보 조회 (심사현황) ──
-        let kiprisInfo = null;
-        if (kiprisKey && parsed.patentNo && parsed.patentNo !== "-") {
-          setLoadingStep("kipris-bib");
-          kiprisInfo = await fetchKiprisPatentInfo(parsed.patentNo);
-        }
-
-        // ── Step 3: KIPRIS 패밀리특허 조회 (해외출원) ──
-        let familyPatents = [];
-        if (kiprisKey && parsed.patentNo && parsed.patentNo !== "-") {
-          setLoadingStep("kipris-family");
-          familyPatents = await fetchKiprisFamilyPatents(parsed.patentNo);
-        }
-
-        // ── Merge: 모든 데이터 합치기 ──
-        setLoadingStep("merge");
-        const examStatus = kiprisInfo?.registrationStatus
-          ? (kiprisInfo.registrationStatus.includes("등록") ? "등록완료" : "심사중")
-          : "확인필요";
-        const overseas = familyPatents.map(f => f.countryCode);
-        const overseasDetail = familyPatents;
-        const filingDate = kiprisInfo?.applicationDate
-          ? kiprisInfo.applicationDate.replace(/(\d{4})(\d{2})(\d{2})/, "$1.$2.$3")
-          : (parsed.filingDate || "-");
-
-        setSmkData({
-          ...parsed,
-          filingDate,
-          examStatus,
-          overseas,
-          overseasDetail,
-          figures: figuresWithImages,
-          kiprisLinked: !!kiprisKey,
-          registrationNumber: kiprisInfo?.registrationNumber || null,
-          registrationDate: kiprisInfo?.registrationDate
-            ? kiprisInfo.registrationDate.replace(/(\d{4})(\d{2})(\d{2})/, "$1.$2.$3")
-            : null,
-        });
-        setSmkLoading(false);
-        setLoadingStep("");
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setSmkLoading(false);
-      setLoadingStep("");
-      showToast("파일 처리 중 오류가 발생했습니다.");
-    }
-  };
-
-  const onDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    handleFile(file);
-  };
-
   // ─── 번호 입력 방식: 서버 API 프록시 경유 ───
   const handleNumberSearch = async () => {
     if (!patentInput.trim()) {
@@ -1294,7 +1076,6 @@ function AppContent() {
     setSmkLoading(true);
     setSmkData(null);
     setSmkTab("smk");
-    setUploadedFile(null);
     setPdfUrl(null);
 
     try {
@@ -1717,22 +1498,10 @@ function AppContent() {
               </div>
               )}
 
-              {/* Mode Tabs */}
-              <div className="role-tabs" style={{ marginBottom: 20 }}>
-                <button className={`role-tab ${uploadMode === "number" ? "active" : ""}`} onClick={() => setUploadMode("number")}>
-                  🔢 번호 입력
-                </button>
-                <button className={`role-tab ${uploadMode === "pdf" ? "active" : ""}`} onClick={() => setUploadMode("pdf")}>
-                  📄 PDF 업로드
-                </button>
-              </div>
-
-              {/* ── 번호 입력 모드 ── */}
-              {uploadMode === "number" && (
-                <div style={{
-                  background: "var(--white)", border: "1px solid var(--border)", borderRadius: 0,
-                  padding: 24, marginBottom: 4
-                }}>
+              <div style={{
+                background: "var(--white)", border: "1px solid var(--border)", borderRadius: 0,
+                padding: 24, marginBottom: 4
+              }}>
                   <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 18, fontWeight: 400, marginBottom: 4, color: "#1a1815" }}>특허 번호로 조회</div>
                   <p style={{ fontSize: 12, color: "var(--text-light)", marginBottom: 18 }}>
                     출원번호, 공개번호, 또는 등록번호를 입력하면 KIPRIS에서 서지정보·도면·해외출원을 자동으로 가져옵니다.
@@ -1771,54 +1540,26 @@ function AppContent() {
                     </button>
                   </div>
                 </div>
-              )}
-
-              {/* ── PDF 업로드 모드 ── */}
-              {uploadMode === "pdf" && (
-                <div
-                  className={`drop-zone ${dragOver ? "dragover" : ""}`}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={onDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <input ref={fileInputRef} type="file" accept="application/pdf" hidden
-                    onChange={(e) => handleFile(e.target.files[0])} />
-                  <div className="drop-zone-icon">📄</div>
-                  <h3>{uploadedFile ? uploadedFile.name : "특허 명세서 PDF를 업로드하세요"}</h3>
-                  <p>{uploadedFile ? `${(uploadedFile.size / 1024 / 1024).toFixed(1)}MB · 클릭하여 다시 업로드` : "드래그 앤 드롭 또는 클릭하여 선택"}</p>
-                </div>
-              )}
 
               {/* Step-by-step Loading */}
               {smkLoading && (
                 <div style={{ marginTop: 28, background: "var(--white)", borderRadius: 0, border: "1px solid var(--border)", padding: 24 }}>
                   <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-                    {(uploadMode === "number" ? [
+                    {[
                       { key: "kipris-bib", icon: "🔍", label: "서지정보" },
                       { key: "kipris-family", icon: "🌐", label: "해외출원" },
                       { key: "ai", icon: "🤖", label: "AI 분석" },
                       { key: "figures", icon: "🖼️", label: "도면 추출" },
                       { key: "merge", icon: "✨", label: "결과 병합" },
-                    ] : [
-                      { key: "pdf", icon: "📄", label: "PDF 읽기" },
-                      { key: "ai", icon: "🤖", label: "AI 분석" },
-                      { key: "figures", icon: "🖼️", label: "도면 추출" },
-                      { key: "kipris-bib", icon: "🔍", label: "심사현황" },
-                      { key: "kipris-family", icon: "🌐", label: "해외출원" },
-                      { key: "merge", icon: "✨", label: "결과 병합" },
-                    ]).map((step, i) => {
-                      const steps = uploadMode === "number"
-                        ? ["kipris-bib", "kipris-family", "ai", "figures", "merge"]
-                        : ["pdf", "ai", "figures", "kipris-bib", "kipris-family", "merge"];
+                    ].map((step, i) => {
+                      const steps = ["kipris-bib", "kipris-family", "ai", "figures", "merge"];
                       const currentIdx = steps.indexOf(loadingStep);
                       const stepIdx = steps.indexOf(step.key);
                       const isDone = stepIdx < currentIdx;
                       const isCurrent = step.key === loadingStep;
-                      const isSkipped = uploadMode === "pdf" && !kiprisKey && (step.key === "kipris-bib" || step.key === "kipris-family");
                       return (
                         <div key={step.key} style={{
-                          flex: 1, textAlign: "center", opacity: isSkipped ? 0.3 : 1,
+                          flex: 1, textAlign: "center",
                           position: "relative"
                         }}>
                           <div style={{
@@ -1835,7 +1576,7 @@ function AppContent() {
                             fontSize: 11, fontWeight: isCurrent ? 700 : 500,
                             color: isCurrent ? "var(--dark)" : isDone ? "#2d5a3e" : "var(--text-light)"
                           }}>
-                            {isSkipped ? "건너뜀" : step.label}
+                            {step.label}
                           </div>
                           {isCurrent && (
                             <div style={{ marginTop: 4 }}>
@@ -1847,7 +1588,6 @@ function AppContent() {
                     })}
                   </div>
                   <div style={{ textAlign: "center", fontSize: 13, color: "var(--text-mid)" }}>
-                    {loadingStep === "pdf" && "PDF 파일을 읽고 있습니다..."}
                     {loadingStep === "ai" && "Claude AI가 명세서를 분석하여 SMK를 작성 중입니다..."}
                     {loadingStep === "figures" && "전문 PDF에서 도면을 추출하고 있습니다..."}
                     {loadingStep === "kipris-bib" && "KIPRIS에서 특허 서지정보를 조회하고 있습니다..."}
@@ -2043,7 +1783,31 @@ function AppContent() {
                             })}
                           </div>
                         ) : pdfUrl ? (
-                          <iframe src={pdfUrl} className="pdf-viewer" title="Patent PDF" />
+                          <>
+                            <div style={{ marginBottom: 10, textAlign: "right" }}>
+                              <a
+                                href={pdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: "inline-block",
+                                  padding: "7px 16px",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  letterSpacing: 1.5,
+                                  textTransform: "uppercase",
+                                  color: "#6B1D2E",
+                                  border: "1px solid #6B1D2E",
+                                  textDecoration: "none",
+                                  fontFamily: "'Sora', sans-serif",
+                                  transition: "all .2s",
+                                }}
+                              >
+                                🔗 새 탭에서 원문 PDF 열기
+                              </a>
+                            </div>
+                            <iframe src={pdfUrl} className="pdf-viewer" title="Patent PDF" />
+                          </>
                         ) : (
                           <div className="pdf-viewer" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-light)", fontSize: 13 }}>
                             전문 파일이 없습니다. 공개 또는 등록되지 않은 출원일 수 있습니다.

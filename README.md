@@ -1,7 +1,7 @@
 # Z-IPValue — 제니스특허법률사무소 IP 기술이전 플랫폼
 
 **도메인**: z-ipvalue.com  
-**기술 스택**: Next.js 14 + Vercel + KIPRIS API + Claude API
+**기술 스택**: Next.js 14 + Vercel + Supabase + KIPRIS API + Claude API
 
 ---
 
@@ -29,8 +29,10 @@ git push -u origin main
 
 | 변수명 | 값 | 설명 |
 |--------|-----|------|
-| `KIPRIS_API_KEY` | `BG96VgMxpZup1YGp5NQ...` | KIPRIS Plus REST AccessKey |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | Claude API 키 |
+| `KIPRIS_API_KEY` | `BG96VgMxpZup1YGp5NQ...` | KIPRIS Plus REST AccessKey (서버 전용) |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` | Claude API 키 (서버 전용) |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` | Supabase 프로젝트 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbG...` | Supabase anon/public 키 |
 | `NEXT_PUBLIC_SITE_URL` | `https://z-ipvalue.com` | 사이트 URL |
 | `NEXT_PUBLIC_FIRM_EMAIL` | `info@ipzenith.co.kr` | 문의 수신 이메일 |
 
@@ -79,13 +81,18 @@ ns2.vercel-dns.com
 z-ipvalue/
 ├── app/
 │   ├── layout.jsx          # HTML 메타데이터, SEO
-│   ├── page.jsx            # 메인 플랫폼 (프론트엔드)
+│   ├── page.jsx            # 메인 플랫폼 (특허 번호 조회·SMK·플랫폼 등록)
+│   ├── admin/
+│   │   └── page.jsx        # 관리자 특허 CRUD
 │   └── api/
 │       └── kipris/
 │           ├── bib/route.js     # KIPRIS 서지정보 프록시
 │           ├── family/route.js  # KIPRIS 패밀리특허 프록시
+│           ├── pdf/route.js     # KIPRIS 전문 PDF/XML CORS 프록시
 │           └── search/route.js  # 통합 검색 + Claude SMK 생성
-├── .env.example             # 환경변수 템플릿
+├── lib/
+│   └── supabase.js          # Supabase 클라이언트
+├── .gitignore               # .env*, .claude/, node_modules 등 제외
 ├── next.config.js           # Next.js 설정
 ├── vercel.json              # Vercel 배포 설정 (서울 리전)
 └── package.json
@@ -97,6 +104,7 @@ z-ipvalue/
 |------|--------|------|
 | `/api/kipris/bib?applicationNumber=1020240012345` | GET | 서지정보 조회 |
 | `/api/kipris/family?applicationNumber=1020240012345` | GET | 패밀리특허 조회 |
+| `/api/kipris/pdf?url=<kipris-xml-url>` | GET | KIPRIS 전문 CORS 프록시 |
 | `/api/kipris/search` | POST | 통합 검색 + SMK 생성 |
 
 ## 보안 구조
@@ -110,6 +118,7 @@ z-ipvalue/
 
 ```bash
 npm install
-cp .env.example .env.local  # 키 값 입력
+# .env.local 을 직접 생성하고 위 환경변수 표의 값 입력
+# (Vercel 배포 중이면: npx vercel env pull .env.local)
 npm run dev                  # http://localhost:3000
 ```
